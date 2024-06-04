@@ -1,2 +1,149 @@
 # subscription
-Email subscription using fastn_user table
+
+This is fastn loadable wasm file source, that helps you add email subscription to your site. This
+uses `fastn_user` table to store subscription data, and uses a cookie named `fastn_tid` to keep
+track of the current user.
+
+## Actions
+
+This wasm file exposes the following routes:
+
+### Subscribe: /subscribe/
+
+This route accepts optional name, optional phone and optional email address. Email address 
+or phone is required if the user is not already logged in.
+
+This route also takes `source` as optional argument. If this is present we add it to 
+`data -> subscription -> source` set (we do not add duplicates here).
+
+We add `data -> subscription -> subscribed` as `true` when the user subscribes. This is
+set to `false` by the `/unsubscribe/` route. Any non-transactional mail should only be sent
+if this is set to `true`.
+
+This route also accepts optional `topic`, which is added to `data -> subscription -> topics`
+set (we do not add duplicates here).
+
+If there is no user in the `fastn_user` table, this route creates one.
+
+This view takes an optional `next`, with default value of `/thank-you/`, and user is redirected
+to this URL after the subscription is successful.
+
+### Unsubscribe: /unsubscribe/
+
+This takes optional `topic`. If `topic` is not passed we set `data -> subscription -> subscribed`
+to `false` (they no longer receive any non-transactional mail from us).
+
+This view takes an optional `next`, with default value of `/goodbye/`, and user is redirected
+to this URL after the unsubscription is successful.
+
+This action also empties the `data -> subscription -> topics` set.
+
+### Set Tracker: `/t/?t=<encrypted/hashed uid>`
+
+This URL can be sent via mail or SMS. The `t` is unique to the user and is encrypted/hashed so that
+`user-id` can not be deduced from it by outsiders, but we can. In the browser the URL is opened, a tracker
+cookie is dropped, tracking the same user.
+
+This will create a new tracker (this is fastn behaviour) if tracker does not exists. It will assign
+the user corresponding to `t` to the tracker. If there was an existing user assigned to that tracker
+we will create a new tracker and assign the user to that tracker.
+
+Earlier we discussed a `/j/` url, which would do the cookie thing and redirect, but we are
+not doing that because:
+
+> There are few problems with this, one it introduces an extra redirect, then since it is 
+> setting cookie without showing any UI to user, there is no place to ask for consent, and 
+> finally Safari does not allow you to set cookie from a http redirect response.
+
+Based on these problems, the right solution seems to be we send the URL, with `t` query
+parameter attached, and show cookie banner to user, and do all this logic as an action.
+
+## Data
+
+This wasm file also exposes this data fetch URL:
+
+### /topics/
+
+This returns a list of subscriptions (`topics`) for the current user. It will return:
+
+```json
+{
+  "subscribed": true,
+  "topics": ["list", "of", "topics"]
+}
+```
+
+### /is-subscribed/?topic=<>
+
+This returns boolean indicating if the current user is subscribed to the given topic. This can be used to
+show subscription dialog. Though it is recommended that you use the corresponding query.
+
+## Queries
+
+ftd files are recommended to use the following queries.
+
+### Find all lists the current user is subscribed to.
+
+This query can be used to create a page that shows the list of subscription of a user.
+The `/subscribe/` and `/unsubscribe/` actions can be used to modify this list.
+
+```ftd
+-- integer uid:
+;; this processor looks for user via tracker id, this is only good for email
+;; subscription scenarios
+$processor$: pr.tracked-user-id 
+
+-- string list topics:
+$processr$: pr.sql-query
+id: $uid
+
+SELECT 
+    data -> subscription -> topics
+FROM 
+    fastn_user
+WHERE 
+    id = $1  -- since id can be zero, this wont match anyone if user is not logged in
+```
+
+### See if the user is subscribed to a topic
+
+```ftd
+-- integer uid:
+$processor$: pr.tracked-user-id
+
+-- boolean subscribed:
+$processor$: pr.sql-query
+id: $uid
+topic: <some topic>
+
+SELECT EXISTS (
+    SELECT 1
+    FROM json_each(data -> 'subscription' -> 'topics')
+    WHERE value = $topic
+)
+from fastn_user where id = $id;
+```
+
+### See if the user is subscribed to anything
+
+```ftd
+-- integer uid:
+$processor$: pr.tracked-user-id
+
+-- boolean subscribed:
+$processor$: pr.sql-query
+id: $uid
+topic: <some topic>
+
+SELECT data -> 'subscription' -> subscribed
+from fastn_user where id = $id;
+```
+
+
+## FAQ
+
+### Can a user be subscribed without any topic?
+
+For most websites there would be no topics, or rather a "default" topic. So instead of adding
+"default" to all topics, and checking if this "default" exists in topics, we keep a separate
+subscribed boolean (which is always subscribed to "default" topic).

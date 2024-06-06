@@ -1,8 +1,8 @@
 [package]
-name = "fastn_subscription"
+name = "subscription"
 version = "0.1.0"
 edition = "2021"
-description = "fastn: Email auth provider"
+description = "subscription wasm app"
 
 [lib]
 crate-type = ["cdylib"]
@@ -22,6 +22,6 @@ cookie = "0.18"
 
 
 [dependencies.ft-sdk]
-version = "0.1.6"
-#path = "../../ft-sdk/ft-sdk"
+#version = "0.1.6"
+path = "../../work/ft-sdk/ft-sdk/"
 features = ["sqlite-default", "auth-provider", "field-extractors"]

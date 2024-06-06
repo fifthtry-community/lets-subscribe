@@ -1,8 +1,9 @@
-extern crate self as auth;
+extern crate self as subscription;
 
-mod handlers;
+mod subscribe;
 
-pub const PROVIDER_ID: &str = "subscription";
+pub const EMAIL_PROVIDER_ID: &str = "email";
+pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";
 pub const TRACKER: &str = "fastn_tid";
 pub const DEFAULT_REDIRECT_ROUTE: &str = "/";
 

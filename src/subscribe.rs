@@ -53,34 +53,53 @@ fn validate(
     }
 }
 
-#[ft_sdk::data]
+#[ft_sdk::form]
 fn subscribe(
     ft_sdk::Query(name): ft_sdk::Query<"name", Option<String>>,
     ft_sdk::Query(phone): ft_sdk::Query<"phone", Option<String>>,
     ft_sdk::Query(email): ft_sdk::Query<"email", Option<String>>,
     ft_sdk::Query(source): ft_sdk::Query<"source", Option<String>>,
     ft_sdk::Query(topic): ft_sdk::Query<"topic", Option<String>>,
+    ft_sdk::Query(next): ft_sdk::Query<"next", Option<String>>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
     mut conn: ft_sdk::Connection,
-) -> ft_sdk::data::Result {
+) -> ft_sdk::form::Result {
+    use diesel::prelude::*;
+
     let (subscriber, id) = validate(&mut conn, name, phone, email, sid)?;
-    let id = get_or_create_user_id(&mut conn, id, &subscriber)?;
+    let user_id = get_or_create_user_id(&mut conn, id, &subscriber)?;
 
-    // ft_sdk::auth::provider::update_user() will overwrite "subscription" data, we want to
-    // preserve anything that was imported from other sources so:
-    //
-    // get `data` of user as string
-    // parse it as serde_json::Value::Object
-    // add "subscription" key with value:
-    // {
-    //     subscription: {
-    //         subscribed: true,
-    //         topics: [] // append here if not exists already
-    //         ... any other existing key if any
-    //     }
-    // }
+    #[derive(diesel::QueryableByName)]
+    #[diesel(table_name = ft_sdk::auth::fastn_user)]
+    struct UserData {
+        data: String,
+    }
 
-    todo!()
+    let data: serde_json::Value = match diesel::sql_query(
+        r#"
+        SELECT data from fastn_user where id = $1 LIMIT 1;
+        "#,
+    )
+    .bind::<diesel::sql_types::Integer, _>(user_id.0)
+    .get_result::<UserData>(&mut conn)
+    {
+        Ok(d) => serde_json::from_str(&d.data)?,
+        Err(e) => return Err(e.into()),
+    };
+
+    let data = add_subscription_info(data, topic, source, &subscriber);
+    let data = serde_json::to_string(&data)?;
+
+    diesel::update(
+        ft_sdk::auth::fastn_user::table.filter(ft_sdk::auth::fastn_user::id.eq(user_id.0)),
+    )
+    .set((
+        ft_sdk::auth::fastn_user::data.eq(data),
+        ft_sdk::auth::fastn_user::updated_at.eq(ft_sdk::env::now()),
+    ))
+    .execute(&mut conn)?;
+
+    ft_sdk::form::redirect(next.unwrap_or("/thank-you/".to_string()))
 }
 
 /// return `id` if it is Some
@@ -114,4 +133,140 @@ fn get_or_create_user_id(
     };
 
     Ok(user_id)
+}
+
+/// add topic and source to the fastn_user.data's "subscription" provider
+/// if "subscription" provider does not exist, create it
+/// if "subscription" provider exists, append topic and source to their respective arrays (no
+/// duplicates are added)
+/// set "subscribed" to true
+fn add_subscription_info(
+    mut data: serde_json::Value,
+    topic: Option<String>,
+    source: Option<String>,
+    subscriber: &Subscriber,
+) -> serde_json::Value {
+    if let Some(topic) = topic {
+        match data
+            .as_object_mut()
+            .expect("data is always a json object")
+            .get_mut("subscription")
+        {
+            Some(sub) => {
+                if let Some(topics) = sub.get_mut("topics") {
+                    topics
+                        .as_array_mut()
+                        .expect("topics is always a json array")
+                        .push(serde_json::Value::String(topic));
+                } else {
+                    sub.as_object_mut()
+                        .expect("subscription is always a json object")
+                        .insert(
+                            "topics".to_string(),
+                            serde_json::Value::Array(vec![serde_json::Value::String(topic)]),
+                        );
+                }
+            }
+            None => {
+                data.as_object_mut()
+                    .expect("data is always a json object")
+                    .insert(
+                        "subscription".to_string(),
+                        serde_json::json!({
+                            "topics": [topic],
+                            "sources": [],
+                        }),
+                    );
+            }
+        }
+    }
+
+    if let Some(source) = source {
+        match data
+            .as_object_mut()
+            .expect("data is always a json object")
+            .get_mut("subscription")
+        {
+            Some(sub) => {
+                if let Some(sources) = sub.get_mut("sources") {
+                    sources
+                        .as_array_mut()
+                        .expect("sources is always a json array")
+                        .push(serde_json::Value::String(source));
+                } else {
+                    sub.as_object_mut()
+                        .expect("subscription is always a json object")
+                        .insert(
+                            "topics".to_string(),
+                            serde_json::Value::Array(vec![serde_json::Value::String(source)]),
+                        );
+                }
+            }
+            None => {
+                data.as_object_mut()
+                    .expect("data is always a json object")
+                    .insert(
+                        "subscription".to_string(),
+                        serde_json::json!({
+                            "sources": [source],
+                            "topics": [],
+                        }),
+                    );
+            }
+        }
+    }
+
+    match data
+        .as_object_mut()
+        .expect("data is always a json object")
+        .get_mut("subscription")
+    {
+        Some(sub) => {
+            sub.as_object_mut()
+                .expect("subscription is always a json object")
+                .insert("subscribed".to_string(), serde_json::Value::Bool(true));
+
+            if let Some(name) = &subscriber.name {
+                sub.as_object_mut()
+                    .expect("subscription is always a json object")
+                    .insert(
+                        "name".to_string(),
+                        serde_json::Value::String(name.to_string()),
+                    );
+            }
+
+            if let Some(phone) = &subscriber.phone {
+                sub.as_object_mut()
+                    .expect("subscription is always a json object")
+                    .insert(
+                        "phone".to_string(),
+                        serde_json::Value::String(phone.to_string()),
+                    );
+            }
+
+            sub.as_object_mut()
+                .expect("subscription is always a json object")
+                .insert(
+                    "email".to_string(),
+                    serde_json::Value::String(subscriber.email.clone()),
+                );
+        }
+        None => {
+            data.as_object_mut()
+                .expect("data is always a json object")
+                .insert(
+                    "subscription".to_string(),
+                    serde_json::json!({
+                        "subscribed": true,
+                        "topics": [],
+                        "sources": [],
+                        "name": subscriber.name,
+                        "phone": subscriber.phone,
+                        "email": subscriber.email,
+                    }),
+                );
+        }
+    }
+
+    data
 }

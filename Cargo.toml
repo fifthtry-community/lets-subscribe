@@ -19,6 +19,7 @@ diesel = { version = ">=2, <2.2", default-features = false, features = ["chrono"
 thiserror = "1"
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 cookie = "0.18"
+validator = "0.18"
 
 
 [dependencies.ft-sdk]

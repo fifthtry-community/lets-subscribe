@@ -56,6 +56,11 @@ fn get_user(
             if email.is_none() {
                 return Err(ft_sdk::single_error("email", "email is required").into());
             }
+
+            if !validator::ValidateEmail::validate_email(&email) {
+                return Err(ft_sdk::single_error("email", "Invalid email.").into());
+            }
+
             let email = email.unwrap();
 
             let (user_id, _) =

@@ -87,7 +87,7 @@ fn subscribe(
         Err(e) => return Err(e.into()),
     };
 
-    let data = add_subscription_info(data, topic, source, &subscriber);
+    let (subscribed, data) = add_subscription_info(data, topic, source, &subscriber);
     let data = serde_json::to_string(&data)?;
 
     diesel::update(
@@ -98,6 +98,12 @@ fn subscribe(
         ft_sdk::auth::fastn_user::updated_at.eq(ft_sdk::env::now()),
     ))
     .execute(&mut conn)?;
+
+    if subscribed {
+        // TODO: send double opt-in email
+        // add another boolean to the sub data, `double_optin` and set it to true upon verification
+        // (clicking on the link in the email)
+    }
 
     ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
 }
@@ -140,12 +146,17 @@ fn get_or_create_user_id(
 /// if "subscription" provider exists, append topic and source to their respective arrays (no
 /// duplicates are added)
 /// set "subscribed" to true
+///
+/// return (subscribed, updated_data). The subscribed is a boolean which is true if a new sub was
+/// done. false indicates that the user was already subscribed, to this topic or all topics
 fn add_subscription_info(
     mut data: serde_json::Value,
     topic: Option<String>,
     source: Option<String>,
     subscriber: &Subscriber,
-) -> serde_json::Value {
+) -> (bool, serde_json::Value) {
+    let mut subscribed = false;
+
     if let Some(topic) = topic {
         match data
             .as_object_mut()
@@ -154,10 +165,21 @@ fn add_subscription_info(
         {
             Some(sub) => {
                 if let Some(topics) = sub.get_mut("topics") {
-                    topics
+                    // add if this topic does not already exist
+                    if topics
                         .as_array_mut()
                         .expect("topics is always a json array")
-                        .push(serde_json::Value::String(topic));
+                        .iter()
+                        .find(|t| t.as_str().expect("topic is a str") == topic)
+                        .is_none()
+                    {
+                        topics
+                            .as_array_mut()
+                            .expect("topics is always a json array")
+                            .push(serde_json::Value::String(topic));
+
+                        subscribed = true;
+                    }
                 } else {
                     sub.as_object_mut()
                         .expect("subscription is always a json object")
@@ -165,6 +187,8 @@ fn add_subscription_info(
                             "topics".to_string(),
                             serde_json::Value::Array(vec![serde_json::Value::String(topic)]),
                         );
+
+                    subscribed = true;
                 }
             }
             None => {
@@ -177,6 +201,8 @@ fn add_subscription_info(
                             "sources": [],
                         }),
                     );
+
+                subscribed = true;
             }
         }
     }
@@ -189,10 +215,18 @@ fn add_subscription_info(
         {
             Some(sub) => {
                 if let Some(sources) = sub.get_mut("sources") {
-                    sources
+                    if sources
                         .as_array_mut()
-                        .expect("sources is always a json array")
-                        .push(serde_json::Value::String(source));
+                        .expect("topics is always a json array")
+                        .iter()
+                        .find(|s| s.as_str().expect("topic is a str") == source)
+                        .is_none()
+                    {
+                        sources
+                            .as_array_mut()
+                            .expect("sources is always a json array")
+                            .push(serde_json::Value::String(source));
+                    }
                 } else {
                     sub.as_object_mut()
                         .expect("subscription is always a json object")
@@ -222,9 +256,14 @@ fn add_subscription_info(
         .get_mut("subscription")
     {
         Some(sub) => {
-            sub.as_object_mut()
+            let old_value = sub
+                .as_object_mut()
                 .expect("subscription is always a json object")
                 .insert("subscribed".to_string(), serde_json::Value::Bool(true));
+
+            if old_value.is_none() {
+                subscribed = true;
+            }
 
             if let Some(name) = &subscriber.name {
                 sub.as_object_mut()
@@ -265,8 +304,10 @@ fn add_subscription_info(
                         "email": subscriber.email,
                     }),
                 );
+
+            subscribed = true;
         }
     }
 
-    data
+    (subscribed, data)
 }

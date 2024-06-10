@@ -99,7 +99,7 @@ fn subscribe(
     ))
     .execute(&mut conn)?;
 
-    ft_sdk::form::redirect(next.unwrap_or("/thank-you/".to_string()))
+    ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
 }
 
 /// return `id` if it is Some

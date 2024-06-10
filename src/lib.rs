@@ -2,6 +2,7 @@ extern crate self as subscription;
 
 mod subscribe;
 mod unsubscribe;
+mod t; // set-tracker
 
 pub const EMAIL_PROVIDER_ID: &str = "email";
 pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";

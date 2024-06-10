@@ -38,13 +38,18 @@ fn validate(
         )),
         None => {
             if email.is_none() {
-                return Err(ft_sdk::single_error("email", "email is required").into());
+                return Err(ft_sdk::single_error("email", "Email is required.").into());
+            }
+            let email = email.unwrap();
+
+            if !validator::ValidateEmail::validate_email(&email) {
+                return Err(ft_sdk::single_error("email", "Invalid email.").into());
             }
 
             Ok((
                 Subscriber {
                     name,
-                    email: email.unwrap(),
+                    email,
                     phone,
                 },
                 None,

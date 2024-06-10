@@ -1,6 +1,7 @@
 extern crate self as subscription;
 
 mod subscribe;
+mod unsubscribe;
 
 pub const EMAIL_PROVIDER_ID: &str = "email";
 pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";

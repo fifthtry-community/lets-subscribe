@@ -46,14 +46,7 @@ fn validate(
                 return Err(ft_sdk::single_error("email", "Invalid email.").into());
             }
 
-            Ok((
-                Subscriber {
-                    name,
-                    email,
-                    phone,
-                },
-                None,
-            ))
+            Ok((Subscriber { name, email, phone }, None))
         }
     }
 }
@@ -67,6 +60,8 @@ fn subscribe(
     ft_sdk::Query(topic): ft_sdk::Query<"topic", Option<String>>,
     ft_sdk::Query(next): ft_sdk::Query<"next", Option<String>>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
+    host: ft_sdk::Host,
+    mountpoint: ft_sdk::Mountpoint,
     mut conn: ft_sdk::Connection,
 ) -> ft_sdk::form::Result {
     use diesel::prelude::*;
@@ -92,25 +87,113 @@ fn subscribe(
         Err(e) => return Err(e.into()),
     };
 
-    let (subscribed, data) = add_subscription_info(data, topic, source, &subscriber);
+    let (subscribed, mut data) = add_subscription_info(data, topic.clone(), source, &subscriber);
+
+    if subscribed {
+        let name = subscriber.name.unwrap_or_else(|| "".to_string());
+        let key = ft_sdk::Rng::generate_key(64);
+        data = add_confirmation_key_in_user(data, &key);
+
+        let conf_link = confirmation_link(&key, &subscriber.email, &host, &mountpoint);
+        send_double_opt_in_email(&mut conn, (&name, &subscriber.email), &conf_link, topic)?;
+    }
+
     let data = serde_json::to_string(&data)?;
 
     diesel::update(
         ft_sdk::auth::fastn_user::table.filter(ft_sdk::auth::fastn_user::id.eq(user_id.0)),
     )
     .set((
-        ft_sdk::auth::fastn_user::data.eq(data),
+        ft_sdk::auth::fastn_user::data.eq(&data),
         ft_sdk::auth::fastn_user::updated_at.eq(ft_sdk::env::now()),
     ))
     .execute(&mut conn)?;
 
-    if subscribed {
-        // TODO: send double opt-in email
-        // add another boolean to the sub data, `double_optin` and set it to true upon verification
-        // (clicking on the link in the email)
+    Err(ft_sdk::single_error("temp", "fsdjk").into())
+    // ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
+}
+
+fn add_confirmation_key_in_user(mut user_data: serde_json::Value, key: &str) -> serde_json::Value {
+    match user_data
+        .as_object_mut()
+        .expect("data is always a json object")
+        .get_mut("subscription")
+    {
+        Some(sub) => {
+            sub.as_object_mut()
+                .expect("subscription is always a json object")
+                .insert(
+                    "confirmation_key".to_string(),
+                    serde_json::Value::String(key.to_string()),
+                );
+        }
+        None => {
+            user_data
+                .as_object_mut()
+                .expect("data is always a json object")
+                .insert(
+                    "subscription".to_string(),
+                    serde_json::json!({
+                        "confirmation_key": key,
+                    }),
+                );
+        }
     }
 
-    ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
+    user_data
+}
+
+fn confirmation_link(
+    key: &str,
+    email: &str,
+    ft_sdk::Host(host): &ft_sdk::Host,
+    ft_sdk::Mountpoint(mountpoint): &ft_sdk::Mountpoint,
+) -> String {
+    format!(
+        "https://{host}{mountpoint}{confirm_sub_route}?code={key}&email={email}",
+        confirm_sub_route = "/confirm-subscription/",
+        mountpoint = mountpoint.trim_end_matches('/'),
+    )
+}
+
+fn send_double_opt_in_email(
+    conn: &mut ft_sdk::Connection,
+    to: (&str, &str),
+    conf_link: &str,
+    topic: Option<String>,
+) -> Result<(), ft_sdk::Error> {
+    let (from_name, from_email) = email_from_address_from_env();
+
+    let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
+
+    let to_topic = if topic.is_some() {
+        format!("to the {}", topic.unwrap())
+    } else {
+        "".to_string()
+    };
+
+    let body_html = subscription::email_templ::CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML
+        .replace("{name}", name_or_email)
+        .replace("{confirmation_link}", conf_link)
+        .replace("{to_topic}", &to_topic);
+
+    let body_txt = subscription::email_templ::CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_TXT
+        .replace("{name}", name_or_email)
+        .replace("{confirmation_link}", conf_link)
+        .replace("{to_topic}", &to_topic);
+
+    Ok(ft_sdk::send_email(
+        conn,
+        (&from_name, &from_email),
+        vec![to],
+        "Confirm your subscription",
+        &body_html,
+        &body_txt,
+        None,
+        None,
+        None,
+        "auth_confirm_account_request",
+    )?)
 }
 
 /// return `id` if it is Some
@@ -307,6 +390,7 @@ fn add_subscription_info(
                         "name": subscriber.name,
                         "phone": subscriber.phone,
                         "email": subscriber.email,
+                        "double_optin": false,
                     }),
                 );
 
@@ -315,4 +399,13 @@ fn add_subscription_info(
     }
 
     (subscribed, data)
+}
+
+pub fn email_from_address_from_env() -> (String, String) {
+    let email = ft_sdk::env::var("FASTN_SMTP_SENDER_EMAIL".to_string())
+        .unwrap_or_else(|| "support@fifthtry.com".to_string());
+    let name = ft_sdk::env::var("FASTN_SMTP_SENDER_NAME".to_string())
+        .unwrap_or_else(|| "FifthTry Team".to_string());
+
+    (name, email)
 }

@@ -1,56 +1,3 @@
-struct Subscriber {
-    name: Option<String>,
-    email: String,
-    phone: Option<String>,
-}
-
-impl Subscriber {
-    fn to_provider_data(&self) -> ft_sdk::auth::ProviderData {
-        ft_sdk::auth::ProviderData {
-            identity: self.email.clone(),
-            username: self.name.clone(),
-            name: self.name.clone(),
-            emails: vec![self.email.clone()],
-            verified_emails: vec![],
-            profile_picture: None,
-            custom: serde_json::json!({}),
-        }
-    }
-}
-
-/// construct [Subscriber] from request data and session
-/// authenticated user data takes precedence over request data
-fn validate(
-    conn: &mut ft_sdk::Connection,
-    name: Option<String>,
-    phone: Option<String>,
-    email: Option<String>,
-    sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
-) -> Result<(Subscriber, Option<ft_sdk::auth::UserId>), ft_sdk::Error> {
-    match ft_sdk::auth::ud(sid, conn)? {
-        Some(ud) => Ok((
-            Subscriber {
-                name: Some(ud.name),
-                email: ud.email,
-                phone,
-            },
-            Some(ft_sdk::auth::UserId(ud.id)),
-        )),
-        None => {
-            if email.is_none() {
-                return Err(ft_sdk::single_error("email", "Email is required.").into());
-            }
-            let email = email.unwrap();
-
-            if !validator::ValidateEmail::validate_email(&email) {
-                return Err(ft_sdk::single_error("email", "Invalid email.").into());
-            }
-
-            Ok((Subscriber { name, email, phone }, None))
-        }
-    }
-}
-
 #[ft_sdk::form]
 fn subscribe(
     ft_sdk::Query(name): ft_sdk::Query<"name", Option<String>>,
@@ -75,6 +22,7 @@ fn subscribe(
         data: String,
     }
 
+    ft_sdk::println!("querying data");
     let data: serde_json::Value = match diesel::sql_query(
         r#"
         SELECT data from fastn_user where id = $1 LIMIT 1;
@@ -86,6 +34,8 @@ fn subscribe(
         Ok(d) => serde_json::from_str(&d.data)?,
         Err(e) => return Err(e.into()),
     };
+
+    ft_sdk::println!("querying data 2");
 
     let (subscribed, mut data) = add_subscription_info(data, topic.clone(), source, &subscriber);
 
@@ -99,6 +49,7 @@ fn subscribe(
     }
 
     let data = serde_json::to_string(&data)?;
+    ft_sdk::println!("querying data 3");
 
     diesel::update(
         ft_sdk::auth::fastn_user::table.filter(ft_sdk::auth::fastn_user::id.eq(user_id.0)),
@@ -109,8 +60,62 @@ fn subscribe(
     ))
     .execute(&mut conn)?;
 
-    Err(ft_sdk::single_error("temp", "fsdjk").into())
-    // ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
+    ft_sdk::println!("querying data 4");
+
+    ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
+}
+
+struct Subscriber {
+    name: Option<String>,
+    email: String,
+    phone: Option<String>,
+}
+
+impl Subscriber {
+    fn to_provider_data(&self) -> ft_sdk::auth::ProviderData {
+        ft_sdk::auth::ProviderData {
+            identity: self.email.clone(),
+            username: self.name.clone(),
+            name: self.name.clone(),
+            emails: vec![self.email.clone()],
+            verified_emails: vec![],
+            profile_picture: None,
+            custom: serde_json::json!({}),
+        }
+    }
+}
+
+/// construct [Subscriber] from request data and session
+/// if email is None, try to get it from logged in user
+fn validate(
+    conn: &mut ft_sdk::Connection,
+    name: Option<String>,
+    phone: Option<String>,
+    email: Option<String>,
+    sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
+) -> Result<(Subscriber, Option<ft_sdk::auth::UserId>), ft_sdk::Error> {
+    match email {
+        Some(email) => {
+            if !validator::ValidateEmail::validate_email(&email) {
+                return Err(ft_sdk::single_error("email", "Invalid email.").into());
+            }
+
+            Ok((Subscriber { name, email, phone }, None))
+        }
+        None => match ft_sdk::auth::ud(sid, conn)? {
+            Some(ud) => Ok((
+                Subscriber {
+                    name: Some(ud.name),
+                    email: ud.email,
+                    phone,
+                },
+                Some(ft_sdk::auth::UserId(ud.id)),
+            )),
+            None => {
+                return Err(ft_sdk::single_error("email", "Email is required.").into());
+            }
+        },
+    }
 }
 
 fn add_confirmation_key_in_user(mut user_data: serde_json::Value, key: &str) -> serde_json::Value {

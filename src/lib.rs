@@ -4,6 +4,7 @@ mod subscribe;
 mod unsubscribe;
 mod confirm_subscription;
 mod email_templ;
+mod is_subscribed;
 mod t; // set-tracker
 
 pub const EMAIL_PROVIDER_ID: &str = "email";

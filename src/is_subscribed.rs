@@ -12,7 +12,11 @@ fn is_subscribed(
     tid: ft_sdk::Cookie<"fastn-tid">,
     mut conn: ft_sdk::Connection,
 ) -> ft_sdk::data::Result {
-    let data = user_data_from_sid_or_tid(sid, tid, &mut conn)?;
+    let data = match user_data_from_sid_or_tid(sid, tid, &mut conn) {
+        Ok(d) => d,
+        Err(_) => return ft_sdk::data::json(serde_json::json!({ "subscribed": false })),
+    };
+
     let subscribed = check_if_subscribed(topic, data);
 
     ft_sdk::data::json(serde_json::json!({ "subscribed": subscribed }))

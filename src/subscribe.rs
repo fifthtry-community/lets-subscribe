@@ -71,20 +71,6 @@ struct Subscriber {
     phone: Option<String>,
 }
 
-impl Subscriber {
-    fn to_provider_data(&self) -> ft_sdk::auth::ProviderData {
-        ft_sdk::auth::ProviderData {
-            identity: self.email.clone(),
-            username: self.name.clone(),
-            name: self.name.clone(),
-            emails: vec![self.email.clone()],
-            verified_emails: vec![],
-            profile_picture: None,
-            custom: serde_json::json!({}),
-        }
-    }
-}
-
 /// construct [Subscriber] from request data and session
 /// if email is None, try to get it from logged in user
 fn validate(
@@ -221,17 +207,44 @@ fn get_or_create_user_id(
         {
             Ok(v) => v,
             Err(e) => match e {
-                ft_sdk::auth::UserDataError::NoDataFound => ft_sdk::auth::provider::create_user(
-                    conn,
-                    crate::EMAIL_PROVIDER_ID,
-                    subscriber.to_provider_data(),
-                )?,
+                ft_sdk::auth::UserDataError::NoDataFound => create_user(conn, subscriber)?,
                 e => return Err(e.into()),
             },
         }
     };
 
     Ok(user_id)
+}
+
+fn create_user(
+    conn: &mut ft_sdk::SqliteConnection,
+    subscriber: &Subscriber,
+) -> Result<ft_sdk::UserId, ft_sdk::Error> {
+    use diesel::prelude::*;
+    use ft_sdk::auth::fastn_user;
+
+    let data = serde_json::to_string(&serde_json::json!({
+        "email": {
+            "emails": [subscriber.email],
+            "identity": subscriber.email,
+        },
+        "subscription": {
+            "identity": subscriber.email,
+            "name": subscriber.name,
+        },
+    }))?;
+
+    let user_id: i64 = diesel::insert_into(fastn_user::table)
+        .values((
+            fastn_user::name.eq(&subscriber.name),
+            fastn_user::data.eq(&data),
+            fastn_user::created_at.eq(ft_sdk::env::now()),
+            fastn_user::updated_at.eq(ft_sdk::env::now()),
+        ))
+        .returning(fastn_user::id)
+        .get_result(conn)?;
+
+    Ok(ft_sdk::UserId(user_id))
 }
 
 /// add topic and source to the fastn_user.data's "subscription" provider
@@ -324,7 +337,7 @@ fn add_subscription_info(
                     sub.as_object_mut()
                         .expect("subscription is always a json object")
                         .insert(
-                            "topics".to_string(),
+                            "sources".to_string(),
                             serde_json::Value::Array(vec![serde_json::Value::String(source)]),
                         );
                 }

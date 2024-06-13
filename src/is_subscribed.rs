@@ -35,15 +35,11 @@ fn check_if_subscribed(topic: Option<String>, user_data: serde_json::Value) -> b
     } else {
         user_data
             .as_object()
-            .map(|v| v.get("subscription"))
-            .flatten()
-            .map(|v| v.as_object())
-            .flatten()
-            .map(|v| v.get("subscribed"))
-            .flatten()
-            .map(|v| v.as_bool())
-            .flatten()
-            .unwrap_or(false)
+            .and_then(|v| v.get("subscription"))
+            .and_then(|v| v.as_object())
+            .and_then(|v| v.get("subscribed"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or_default()
     };
 
     subscribed

@@ -24,7 +24,6 @@ fn subscribe(
         data: String,
     }
 
-    ft_sdk::println!("querying data");
     let data: serde_json::Value = match diesel::sql_query(
         r#"
         SELECT data from fastn_user where id = $1 LIMIT 1;
@@ -36,8 +35,6 @@ fn subscribe(
         Ok(d) => serde_json::from_str(&d.data)?,
         Err(e) => return Err(e.into()),
     };
-
-    ft_sdk::println!("querying data 2");
 
     let (has_subscribed, mut data) =
         add_subscription_info(data, topic.clone(), source, &subscriber);
@@ -55,7 +52,6 @@ fn subscribe(
     }
 
     let data = serde_json::to_string(&data)?;
-    ft_sdk::println!("querying data 3");
 
     diesel::update(
         ft_sdk::auth::fastn_user::table.filter(ft_sdk::auth::fastn_user::id.eq(user_id.0)),
@@ -65,8 +61,6 @@ fn subscribe(
         ft_sdk::auth::fastn_user::updated_at.eq(ft_sdk::env::now()),
     ))
     .execute(&mut conn)?;
-
-    ft_sdk::println!("querying data 4");
 
     let next = if is_authenticated { on_confirm } else { next };
 

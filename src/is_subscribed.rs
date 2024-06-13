@@ -26,16 +26,12 @@ fn check_if_subscribed(topic: Option<String>, user_data: serde_json::Value) -> b
     let subscribed = if let Some(topic) = topic {
         user_data
             .as_object()
-            .map(|v| v.get("subscription"))
-            .flatten()
-            .map(|v| v.as_object())
-            .flatten()
-            .map(|v| v.get("topics"))
-            .flatten()
-            .map(|v| v.as_array())
-            .flatten()
-            .map(|v| v.iter().any(|t| t.as_str() == Some(&topic)))
-            .unwrap_or(false)
+            .and_then(|v| v.get("subscription"))
+            .and_then(|v| v.as_object())
+            .and_then(|v| v.get("topics"))
+            .and_then(|v| v.as_array())
+            .map(|topics| topics.iter().any(|t| t.as_str() == Some(&topic)))
+            .unwrap_or_default()
     } else {
         user_data
             .as_object()

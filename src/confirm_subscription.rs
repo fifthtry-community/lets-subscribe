@@ -51,7 +51,7 @@ pub fn confirm_subscription(
     ft_sdk::processor::temporary_redirect(next)
 }
 
-fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value {
+pub fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value {
     match user_data
         .as_object_mut()
         .expect("data is always a json object")

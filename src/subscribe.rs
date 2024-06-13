@@ -6,6 +6,8 @@ fn subscribe(
     ft_sdk::Query(source): ft_sdk::Query<"source", Option<String>>,
     ft_sdk::Query(topic): ft_sdk::Query<"topic", Option<String>>,
     ft_sdk::Query(next): ft_sdk::Query<"next", Option<String>>,
+    // on_confirm is the route to redirect to after the user confirms their subscription
+    ft_sdk::Query(on_confirm): ft_sdk::Query<"on_confirm", Option<String>>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
     host: ft_sdk::Host,
     mountpoint: ft_sdk::Mountpoint,
@@ -13,7 +15,7 @@ fn subscribe(
 ) -> ft_sdk::form::Result {
     use diesel::prelude::*;
 
-    let (subscriber, id) = validate(&mut conn, name, phone, email, sid)?;
+    let (subscriber, id, is_authenticated) = validate(&mut conn, name, phone, email, sid)?;
     let user_id = get_or_create_user_id(&mut conn, id, &subscriber)?;
 
     #[derive(diesel::QueryableByName)]
@@ -37,15 +39,19 @@ fn subscribe(
 
     ft_sdk::println!("querying data 2");
 
-    let (subscribed, mut data) = add_subscription_info(data, topic.clone(), source, &subscriber);
+    let (has_subscribed, mut data) =
+        add_subscription_info(data, topic.clone(), source, &subscriber);
 
-    if subscribed {
+    if has_subscribed && !is_authenticated {
         let name = subscriber.name.unwrap_or_else(|| "".to_string());
         let key = ft_sdk::Rng::generate_key(64);
         data = add_confirmation_key_in_user(data, &key);
 
-        let conf_link = confirmation_link(&key, &subscriber.email, &host, &mountpoint);
+        let on_confirm = on_confirm.clone().unwrap_or_else(|| "/".to_string());
+        let conf_link = confirmation_link(&key, &subscriber.email, &on_confirm, &host, &mountpoint);
         send_double_opt_in_email(&mut conn, (&name, &subscriber.email), &conf_link, topic)?;
+    } else {
+        data = subscription::confirm_subscription::mark_user_verified(data);
     }
 
     let data = serde_json::to_string(&data)?;
@@ -62,6 +68,8 @@ fn subscribe(
 
     ft_sdk::println!("querying data 4");
 
+    let next = if is_authenticated { on_confirm } else { next };
+
     ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
 }
 
@@ -73,20 +81,22 @@ struct Subscriber {
 
 /// construct [Subscriber] from request data and session
 /// if email is None, try to get it from logged in user
+///
+/// return (Subscriber, UserId, is_authenticated)
 fn validate(
     conn: &mut ft_sdk::Connection,
     name: Option<String>,
     phone: Option<String>,
     email: Option<String>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
-) -> Result<(Subscriber, Option<ft_sdk::auth::UserId>), ft_sdk::Error> {
+) -> Result<(Subscriber, Option<ft_sdk::auth::UserId>, bool), ft_sdk::Error> {
     match email {
         Some(email) => {
             if !validator::ValidateEmail::validate_email(&email) {
                 return Err(ft_sdk::single_error("email", "Invalid email.").into());
             }
 
-            Ok((Subscriber { name, email, phone }, None))
+            Ok((Subscriber { name, email, phone }, None, false))
         }
         None => match ft_sdk::auth::ud(sid, conn)? {
             Some(ud) => Ok((
@@ -96,6 +106,7 @@ fn validate(
                     phone,
                 },
                 Some(ft_sdk::auth::UserId(ud.id)),
+                true,
             )),
             None => {
                 return Err(ft_sdk::single_error("email", "Email is required.").into());
@@ -137,11 +148,12 @@ fn add_confirmation_key_in_user(mut user_data: serde_json::Value, key: &str) -> 
 fn confirmation_link(
     key: &str,
     email: &str,
+    next: &str,
     ft_sdk::Host(host): &ft_sdk::Host,
     ft_sdk::Mountpoint(mountpoint): &ft_sdk::Mountpoint,
 ) -> String {
     format!(
-        "https://{host}{mountpoint}{confirm_sub_route}?code={key}&email={email}",
+        "https://{host}{mountpoint}{confirm_sub_route}?code={key}&email={email}&next={next}",
         confirm_sub_route = "/confirm-subscription/",
         mountpoint = mountpoint.trim_end_matches('/'),
     )

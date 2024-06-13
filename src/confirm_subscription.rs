@@ -35,9 +35,8 @@ pub fn confirm_subscription(
 
         data = mark_user_verified(data);
 
-        data
+        serde_json::to_string(&data)?
     };
-    let data = serde_json::to_string(&data)?;
 
     diesel::update(
         ft_sdk::auth::fastn_user::table.filter(ft_sdk::auth::fastn_user::id.eq(user_id)),

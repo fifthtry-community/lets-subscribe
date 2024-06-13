@@ -163,11 +163,7 @@ fn send_double_opt_in_email(
 
     let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
 
-    let to_topic = if topic.is_some() {
-        format!("to the {}", topic.unwrap())
-    } else {
-        "".to_string()
-    };
+    let to_topic = topic.map(|topic| format!("to the {}", topic)).unwrap_or_default();
 
     let body_html = subscription::email_templ::CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML
         .replace("{name}", name_or_email)

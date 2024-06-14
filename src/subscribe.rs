@@ -163,7 +163,9 @@ fn send_double_opt_in_email(
 
     let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
 
-    let to_topic = topic.map(|topic| format!("to the {}", topic)).unwrap_or_default();
+    let to_topic = topic
+        .map(|topic| format!("to the {}", topic))
+        .unwrap_or_default();
 
     let body_html = subscription::email_templ::CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML
         .replace("{name}", name_or_email)
@@ -364,39 +366,34 @@ fn add_subscription_info(
         .get_mut("subscription")
     {
         Some(sub) => {
-            let old_value = sub
+            let sub = sub
                 .as_object_mut()
-                .expect("subscription is always a json object")
-                .insert("subscribed".to_string(), serde_json::Value::Bool(true));
+                .expect("subscription is always a json object");
+
+            let old_value = sub.insert("subscribed".to_string(), serde_json::Value::Bool(true));
 
             if old_value.is_none() {
                 subscribed = true;
             }
 
             if let Some(name) = &subscriber.name {
-                sub.as_object_mut()
-                    .expect("subscription is always a json object")
-                    .insert(
-                        "name".to_string(),
-                        serde_json::Value::String(name.to_string()),
-                    );
+                sub.insert(
+                    "name".to_string(),
+                    serde_json::Value::String(name.to_string()),
+                );
             }
 
             if let Some(phone) = &subscriber.phone {
-                sub.as_object_mut()
-                    .expect("subscription is always a json object")
-                    .insert(
-                        "phone".to_string(),
-                        serde_json::Value::String(phone.to_string()),
-                    );
+                sub.insert(
+                    "phone".to_string(),
+                    serde_json::Value::String(phone.to_string()),
+                );
             }
 
-            sub.as_object_mut()
-                .expect("subscription is always a json object")
-                .insert(
-                    "email".to_string(),
-                    serde_json::Value::String(subscriber.email.clone()),
-                );
+            sub.insert(
+                "email".to_string(),
+                serde_json::Value::String(subscriber.email.clone()),
+            );
         }
         None => {
             data.as_object_mut()

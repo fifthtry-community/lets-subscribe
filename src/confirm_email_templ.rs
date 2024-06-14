@@ -1,4 +1,6 @@
-pub(crate) const CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML: &str = r#"<!DOCTYPE html>
+// TODO: remove these hardcoded content
+// this should be configurable
+pub(crate) const HTML_BODY: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -83,20 +85,20 @@ pub(crate) const CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML: &str = r#"<!DOCTYPE h
         <div class="content">
             <h1>Confirm Your Subscription</h1>
             <p>Hi {name}, Thank you for subscribing to the {topic}!</p>
-            <p>We're thrilled to have you join our community. You're now just one step away from staying updated with our latest news, tips, and exclusive content delivered straight to your inbox.</p>
+            <p>We're thrilled to have you join our community. You're now just one step away from
+            staying updated with our latest news, tips, and exclusive content delivered straight to
+            your inbox.</p>
             <p>Please confirm your subscription by clicking the link below:</p>
 
             <a href="{confirmation_link}">Confirm Subscription</a>
         </div>
             <div class="concern">
-                <p>We respect your privacy and promise to keep your information safe. If you didn't subscribe to this newsletter or have any concerns, please ignore this email or reach out to us at
-            <a href="https://example.com/unsubscribe" class="help">help@fifthtry.com</a>.</p>
+            <p>We respect your privacy and promise to keep your information safe. If you didn't
+            subscribe to this newsletter or have any concerns, please ignore this email or reach
+            out to us at help@fifthtry.com.</p>
             </div>
 
-            
-        
         <div class="footer">
-            
             <p>© 2024 FifthTry. All rights reserved.</p>
         </div>
     </div>
@@ -104,10 +106,11 @@ pub(crate) const CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML: &str = r#"<!DOCTYPE h
 </html>
 "#;
 
-pub(crate) const CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_TXT: &str = r#"Confirm Your Subscription
+pub(crate) const TEXT_BODY: &str = r#"Confirm Your Subscription
 
 Hi {name}, Thank you for subscribing {to_topic}!
 We're thrilled to have you join our community. You're now just one step away from staying updated with our latest news, tips, and exclusive content delivered straight to your inbox.
+
 Please confirm your subscription by clicking the link below:
 
 {confirmation_link}

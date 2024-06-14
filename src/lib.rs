@@ -3,9 +3,15 @@ extern crate self as subscription;
 mod subscribe;
 mod unsubscribe;
 mod confirm_subscription;
-mod email_templ;
+mod confirm_email_templ;
+mod welcome_email_templ;
 mod is_subscribed;
 mod t; // set-tracker
+
+
+pub(crate) use confirm_subscription::mark_user_verified;
+pub(crate) use confirm_subscription::send_welcome_email;
+pub(crate) use subscribe::email_from_address_from_env;
 
 pub const EMAIL_PROVIDER_ID: &str = "email";
 pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";

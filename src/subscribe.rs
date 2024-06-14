@@ -39,8 +39,8 @@ fn subscribe(
     let (has_subscribed, mut data) =
         add_subscription_info(data, topic.clone(), source, &subscriber);
 
+    let name = subscriber.name.unwrap_or_else(|| "".to_string());
     if has_subscribed && !is_authenticated {
-        let name = subscriber.name.unwrap_or_else(|| "".to_string());
         let key = ft_sdk::Rng::generate_key(64);
         data = add_confirmation_key_in_user(data, &key);
 
@@ -48,7 +48,8 @@ fn subscribe(
         let conf_link = confirmation_link(&key, &subscriber.email, &on_confirm, &host, &mountpoint);
         send_double_opt_in_email(&mut conn, (&name, &subscriber.email), &conf_link, topic)?;
     } else {
-        data = subscription::confirm_subscription::mark_user_verified(data);
+        data = subscription::mark_user_verified(data);
+        subscription::send_welcome_email(&mut conn, (&name, &subscriber.email))?;
     }
 
     let data = serde_json::to_string(&data)?;
@@ -167,12 +168,12 @@ fn send_double_opt_in_email(
         .map(|topic| format!("to the {}", topic))
         .unwrap_or_default();
 
-    let body_html = subscription::email_templ::CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_HTML
+    let body_html = subscription::confirm_email_templ::HTML_BODY
         .replace("{name}", name_or_email)
         .replace("{confirmation_link}", conf_link)
         .replace("{to_topic}", &to_topic);
 
-    let body_txt = subscription::email_templ::CONFIRM_SUBSCRIPTION_EMAIL_TEMPLATE_TXT
+    let body_txt = subscription::confirm_email_templ::TEXT_BODY
         .replace("{name}", name_or_email)
         .replace("{confirmation_link}", conf_link)
         .replace("{to_topic}", &to_topic);
@@ -181,13 +182,14 @@ fn send_double_opt_in_email(
         conn,
         (&from_name, &from_email),
         vec![to],
+        // TODO: this should be configurable
         "Confirm your subscription",
         &body_html,
         &body_txt,
         None,
         None,
         None,
-        "auth_confirm_account_request",
+        "subscription.confirm_subscription_request",
     )?)
 }
 
@@ -418,7 +420,7 @@ fn add_subscription_info(
     (subscribed, data)
 }
 
-pub fn email_from_address_from_env() -> (String, String) {
+pub(crate) fn email_from_address_from_env() -> (String, String) {
     let email = ft_sdk::env::var("FASTN_SMTP_SENDER_EMAIL".to_string())
         .unwrap_or_else(|| "support@fifthtry.com".to_string());
     let name = ft_sdk::env::var("FASTN_SMTP_SENDER_NAME".to_string())

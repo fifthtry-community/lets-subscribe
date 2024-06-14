@@ -1,3 +1,4 @@
+#[allow(clippy::too_many_arguments)]
 #[ft_sdk::form]
 fn subscribe(
     ft_sdk::Query(name): ft_sdk::Query<"name", Option<String>>,
@@ -103,9 +104,7 @@ fn validate(
                 Some(ft_sdk::auth::UserId(ud.id)),
                 true,
             )),
-            None => {
-                return Err(ft_sdk::single_error("email", "Email is required.").into());
-            }
+            None => Err(ft_sdk::single_error("email", "Email is required.").into()),
         },
     }
 }
@@ -278,12 +277,11 @@ fn add_subscription_info(
             Some(sub) => {
                 if let Some(topics) = sub.get_mut("topics") {
                     // add if this topic does not already exist
-                    if topics
+                    if !topics
                         .as_array_mut()
                         .expect("topics is always a json array")
                         .iter()
-                        .find(|t| t.as_str().expect("topic is a str") == topic)
-                        .is_none()
+                        .any(|t| t.as_str().expect("topic is a str") == topic)
                     {
                         topics
                             .as_array_mut()
@@ -327,12 +325,11 @@ fn add_subscription_info(
         {
             Some(sub) => {
                 if let Some(sources) = sub.get_mut("sources") {
-                    if sources
+                    if !sources
                         .as_array_mut()
                         .expect("topics is always a json array")
                         .iter()
-                        .find(|s| s.as_str().expect("topic is a str") == source)
-                        .is_none()
+                        .any(|s| s.as_str().expect("topic is a str") == source)
                     {
                         sources
                             .as_array_mut()

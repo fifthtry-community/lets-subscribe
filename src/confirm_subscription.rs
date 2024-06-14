@@ -1,5 +1,5 @@
 #[ft_sdk::processor]
-pub fn confirm_subscription(
+fn confirm_subscription(
     mut conn: ft_sdk::Connection,
     ft_sdk::Query(code): ft_sdk::Query<"code">,
     ft_sdk::Query(email): ft_sdk::Query<"email">,
@@ -40,6 +40,8 @@ pub fn confirm_subscription(
         Err(e) => return Err(e.into()),
     };
 
+    let name = get_name(&data);
+
     let data = {
         let mut data = data;
 
@@ -57,11 +59,24 @@ pub fn confirm_subscription(
     ))
     .execute(&mut conn)?;
 
+    send_welcome_email(&mut conn, (&name, &email))?;
+
     let next = next.unwrap_or_else(|| "/".to_string());
     ft_sdk::processor::temporary_redirect(next)
 }
 
-pub fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value {
+fn get_name(user_data: &serde_json::Value) -> String {
+    user_data
+        .as_object()
+        .and_then(|v| v.get("subscription"))
+        .and_then(|v| v.as_object())
+        .and_then(|v| v.get("name"))
+        .and_then(|v| v.as_str())
+        .and_then(|v| Some(v.to_string()))
+        .unwrap_or_default()
+}
+
+pub(crate) fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value {
     match user_data
         .as_object_mut()
         .expect("data is always a json object")
@@ -80,4 +95,31 @@ pub fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value
     }
 
     user_data
+}
+
+pub(crate) fn send_welcome_email(
+    conn: &mut ft_sdk::Connection,
+    to: (&str, &str),
+) -> Result<(), ft_sdk::Error> {
+    let (from_name, from_email) = subscription::email_from_address_from_env();
+
+    let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
+
+    let body_html = subscription::welcome_email_templ::HTML_BODY.replace("{name}", name_or_email);
+
+    let body_txt = subscription::welcome_email_templ::TEXT_BODY.replace("{name}", name_or_email);
+
+    Ok(ft_sdk::send_email(
+        conn,
+        (&from_name, &from_email),
+        vec![to],
+        // TODO: this should be configurable
+        "Confirm your subscription",
+        &body_html,
+        &body_txt,
+        None,
+        None,
+        None,
+        "subscription.welcome_email",
+    )?)
 }

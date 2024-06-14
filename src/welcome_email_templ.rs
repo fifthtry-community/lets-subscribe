@@ -35,11 +35,9 @@ pub(crate) const HTML_BODY: &str = r#"<!DOCTYPE html>
         }
         .content {
             padding: 20px;
-            text-align: center;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            align-items: center;
         }
         .content h1 {
             font-size: 30px;
@@ -50,21 +48,11 @@ pub(crate) const HTML_BODY: &str = r#"<!DOCTYPE html>
             color: #303030;
         }
         .content a {
-            display: inline-block;
-            margin-top: 20px;
-            margin-bottom: 4px;
-            padding: 16px 20px;
-            background-color: #ef8435;
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 8px;
-            width: 250px;
-            text-align: center;
+        	text-decoration: none;
         }
 
-        .concern p {
-            font-size: 12px;
-            color: #666666;
+        .content regards{
+        	margin-top: -24px;
         }
 
 
@@ -83,17 +71,30 @@ pub(crate) const HTML_BODY: &str = r#"<!DOCTYPE html>
             <img class="logo" src="https://www.fifthtry.com/-/ui.fifthtry.com/assets/logo.svg" alt="Company Logo">
         </div>
         <div class="content">
-            <h1>Welcome</h1>
-            <p>Hi {name}, Thank you for subscribing to the {topic}!</p>
-            <p>We're thrilled to have you join our community.</p>
-        </div>
-            <div class="concern">
-            <p>We respect your privacy and promise to keep your information safe. If you didn't
-            subscribe to this newsletter or have any concerns, please ignore this email or reach
-            out to us at help@fifthtry.com</a>.</p>
+            <h1>Thank you for subscribing + Start Learning</h1>
+            <p>Hi {name}, Thank you for subscribing to the FifthTry newsletter! 🎉 We're excited to have you on board.</p>
+            <p>To get you started, here are some recent highlights and resources you might find useful:</p>
+            <ul>
+            	<li style="list-style-type: decimal; font-weight: 600;">Build and Host Your Website on FifthTry</li>
+            	<p>Create your FifthTry account and start building your website right in your browser. <a href="fifthtry.com">Start here</a></p>
+            	<li style="list-style-type: decimal; font-weight: 600;">The FifthTry Editor</li>
+            	<p>Our intuitive and easy-to-use online editor for all your fastn projects. <a href="fifthtry.com">Check out</a></p>
+            	<li style="list-style-type: decimal; font-weight: 600;">Tutorial</li>
+            	<p>Follow this step-by-step guide to build your website using our design system package.<a href="fastn-community.github.io/design-system/">Read the tutorial</a></p>
+            </ul>
+            <div class="regards">
+            <p>We’re thrilled to help you on your web development journey. If you have any questions or need assistance, reply to this email.</p>
+            <p>Happy coding! 🚀</p>
+            <p>Best regards,</p>
+            <p>Team FifthTry</p>
             </div>
+        </div>
+            
 
+            
+        
         <div class="footer">
+            
             <p>© 2024 FifthTry. All rights reserved.</p>
         </div>
     </div>
@@ -101,12 +102,20 @@ pub(crate) const HTML_BODY: &str = r#"<!DOCTYPE html>
 </html>
 "#;
 
-pub(crate) const TEXT_BODY: &str = r#"Confirm Your Subscription
+pub(crate) const TEXT_BODY: &str = r#"Thank you for subscribing + Start Learning
+Hi {name}, Thank you for subscribing to the FifthTry newsletter! 🎉 We're excited to have you on board.
+To get you started, here are some recent highlights and resources you might find useful:
 
-Hi {name}, Thank you for subscribing {to_topic}!
-We're thrilled to have you join our community.
+    - Build and Host Your Website on FifthTry.
+    - Create your FifthTry account and start building your website right in your browser. Start at www.fifthtry.com.
+    - The FifthTry Editor: Our intuitive and easy-to-use online editor for all your fastn projects.
+    - Follow this step-by-step guide to build your website using our design system package. Read the tutorial at: fastn-community.github.io/design-system/
 
-We respect your privacy and promise to keep your information safe. If you didn't subscribe to this newsletter or have any concerns, please ignore this email or reach out to us at help@fifthtry.com.
+We’re thrilled to help you on your web development journey. If you have any questions or need assistance, reply to this email.
+Happy coding! 🚀
+
+Best regards,
+Team FifthTry
 
 © 2024 FifthTry. All rights reserved.
 "#;

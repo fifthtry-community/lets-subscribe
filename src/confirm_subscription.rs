@@ -68,13 +68,13 @@ pub fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value
         .get_mut("subscription")
     {
         Some(sub) => {
-            sub.as_object_mut()
-                .expect("subscription is always a json object")
-                .insert("confirmed".to_string(), serde_json::Value::Bool(true));
+            let sub = sub
+                .as_object_mut()
+                .expect("subscription is always a json object");
 
-            sub.as_object_mut()
-                .expect("subscription is always a json object")
-                .remove("confirmation_key");
+            sub.insert("confirmed".to_string(), serde_json::Value::Bool(true));
+
+            sub.remove("confirmation_key");
         }
         None => unreachable!("if we found this user from the ?code then the object must exist"),
     }

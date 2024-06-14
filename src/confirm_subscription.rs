@@ -18,15 +18,25 @@ pub fn confirm_subscription(
         data: String,
     }
 
-    let (user_id, data): (i64, serde_json::Value)  = match diesel::sql_query(
+    let (user_id, data): (i64, serde_json::Value) = match diesel::sql_query(
         r#"
-        SELECT id, data from fastn_user where json_extract(data, '$.subscription.confirmation_key') = $1 LIMIT 1;
+        SELECT id, data FROM fastn_user
+        WHERE json_extract(data, '$.subscription.confirmation_key') = $1
+        AND EXISTS (
+            SELECT 1 FROM json_each(json_extract(data, '$.email.emails'))
+            WHERE value = $2
+        )
+        LIMIT 1;
         "#,
     )
     .bind::<diesel::sql_types::Text, _>(&code)
+    .bind::<diesel::sql_types::Text, _>(&email)
     .get_result::<UserData>(&mut conn)
     {
         Ok(d) => (d.id, serde_json::from_str(&d.data)?),
+        Err(diesel::result::Error::NotFound) => {
+            return Err(ft_sdk::single_error("code", "Invalid code or email").into());
+        }
         Err(e) => return Err(e.into()),
     };
 

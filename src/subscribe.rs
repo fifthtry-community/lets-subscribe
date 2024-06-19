@@ -171,12 +171,12 @@ fn send_double_opt_in_email(
     let body_html = subscription::confirm_email_templ::HTML_BODY
         .replace("{name}", name_or_email)
         .replace("{confirmation_link}", conf_link)
-        .replace("{to_topic}", &to_topic);
+        .replace("{topic}", &to_topic);
 
     let body_txt = subscription::confirm_email_templ::TEXT_BODY
         .replace("{name}", name_or_email)
         .replace("{confirmation_link}", conf_link)
-        .replace("{to_topic}", &to_topic);
+        .replace("{topic}", &to_topic);
 
     Ok(ft_sdk::send_email(
         conn,

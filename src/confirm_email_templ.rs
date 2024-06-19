@@ -108,7 +108,7 @@ pub(crate) const HTML_BODY: &str = r#"<!DOCTYPE html>
 
 pub(crate) const TEXT_BODY: &str = r#"Confirm Your Subscription
 
-Hi {name}, Thank you for subscribing {to_topic}!
+Hi {name}, Thank you for subscribing {topic}!
 We're thrilled to have you join our community. You're now just one step away from staying updated with our latest news, tips, and exclusive content delivered straight to your inbox.
 
 Please confirm your subscription by clicking the link below:

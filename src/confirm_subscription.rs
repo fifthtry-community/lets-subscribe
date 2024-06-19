@@ -72,7 +72,7 @@ fn get_name(user_data: &serde_json::Value) -> String {
         .and_then(|v| v.as_object())
         .and_then(|v| v.get("name"))
         .and_then(|v| v.as_str())
-        .and_then(|v| Some(v.to_string()))
+        .map(|v| v.to_string())
         .unwrap_or_default()
 }
 

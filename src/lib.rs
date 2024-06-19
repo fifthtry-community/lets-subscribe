@@ -1,13 +1,12 @@
 extern crate self as subscription;
 
-mod subscribe;
-mod unsubscribe;
-mod confirm_subscription;
 mod confirm_email_templ;
-mod welcome_email_templ;
+mod confirm_subscription;
 mod is_subscribed;
-mod t; // set-tracker
-
+mod subscribe;
+mod t;
+mod unsubscribe;
+mod welcome_email_templ; // set-tracker
 
 pub(crate) use confirm_subscription::mark_user_verified;
 pub(crate) use confirm_subscription::send_welcome_email;

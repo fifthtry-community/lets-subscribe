@@ -71,7 +71,6 @@ fn get_user(
     }
 }
 
-
 /// mark the subscription as unsubscribed if `topic` is None
 /// otherwise, remove the topic from the subscription
 fn remove_subscription_info(
@@ -90,7 +89,7 @@ fn remove_subscription_info(
                     let new_topics: Vec<serde_json::Value> = topics
                         .as_array()
                         .expect("topics is always a json array")
-                        .into_iter()
+                        .iter()
                         .filter_map(|t| {
                             let tstr = t.as_str().expect("topic is a str");
 
@@ -127,13 +126,9 @@ fn remove_subscription_info(
             .get_mut("subscription")
         {
             Some(sub) => {
-                    sub.as_object_mut()
-                        .expect("subscription is always a json object")
-                        .insert(
-                            "subscribed".to_string(),
-                            serde_json::Value::Bool(false),
-                        );
-
+                sub.as_object_mut()
+                    .expect("subscription is always a json object")
+                    .insert("subscribed".to_string(), serde_json::Value::Bool(false));
             }
             None => {
                 data.as_object_mut()

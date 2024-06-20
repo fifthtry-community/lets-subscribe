@@ -66,7 +66,12 @@ fn subscribe(
 
     let next = if is_authenticated { on_confirm } else { next };
 
-    ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))
+    let tracker_id = ft_sdk::tracker::create_tracker(&mut conn, Some(user_id.0))?;
+
+    Ok(
+        ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))?
+            .with_cookie(subscription::tracker_cookie(tracker_id.0.as_str(), host)?),
+    )
 }
 
 struct Subscriber {

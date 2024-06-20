@@ -38,25 +38,18 @@ to this URL after the unsubscription is successful.
 
 This action also empties the `data -> subscription -> topics` set.
 
-### Set Tracker: `/t/?t=<encrypted/hashed uid>`
+### Set Tracker: `/set-tracker/?t=<encrypted/hashed uid>`
 
-This URL can be sent via mail or SMS. The `t` is unique to the user and is encrypted/hashed so that
-`user-id` can not be deduced from it by outsiders, but we can. In the browser the URL is opened, a tracker
-cookie is dropped, tracking the same user.
+Set a tracker cookie.
 
-This will create a new tracker (this is fastn behaviour) if tracker does not exists. It will assign
-the user corresponding to `t` to the tracker. If there was an existing user assigned to that tracker
-we will create a new tracker and assign the user to that tracker.
+The `t` is an encrypted string which contains the user id (as i64). If `t` is
+not provided, current logged in user id is used. If there is no logged in user,
+set an empty tracker cookie.
 
-Earlier we discussed a `/j/` url, which would do the cookie thing and redirect, but we are
-not doing that because:
-
-> There are few problems with this, one it introduces an extra redirect, then since it is 
-> setting cookie without showing any UI to user, there is no place to ask for consent, and 
-> finally Safari does not allow you to set cookie from a http redirect response.
-
-Based on these problems, the right solution seems to be we send the URL, with `t` query
-parameter attached, and show cookie banner to user, and do all this logic as an action.
+The tracker cookie should be also set:
+- on subscribe - set tracker id cookie
+- on log in - set tracker id cookie (in email-auth.wasm)
+- on cookie consent - set tracker id cookie
 
 ## Data
 

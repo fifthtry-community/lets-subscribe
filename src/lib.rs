@@ -4,7 +4,7 @@ mod confirm_email_templ;
 mod confirm_subscription;
 mod is_subscribed;
 mod subscribe;
-mod t;
+mod set_tracker;
 mod unsubscribe;
 mod welcome_email_templ; // set-tracker
 
@@ -14,12 +14,10 @@ pub(crate) use subscribe::email_from_address_from_env;
 
 pub const EMAIL_PROVIDER_ID: &str = "email";
 pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";
-pub const TRACKER: &str = "fastn_tid";
 pub const DEFAULT_REDIRECT_ROUTE: &str = "/";
 
 pub fn tracker_cookie(tid: &str, host: ft_sdk::Host) -> Result<http::HeaderValue, ft_sdk::Error> {
-    // DO NOT CHANGE THINGS HERE, consult logout code in fastn.
-    let cookie = cookie::Cookie::build((TRACKER, tid))
+    let cookie = cookie::Cookie::build((ft_sdk::tracker::TRACKER_KEY, tid))
         .domain(host.without_port())
         .path("/")
         .max_age(cookie::time::Duration::seconds(34560000))

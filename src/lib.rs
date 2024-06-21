@@ -17,7 +17,19 @@ pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";
 pub const DEFAULT_REDIRECT_ROUTE: &str = "/";
 
 pub fn tracker_cookie(tid: &str, host: ft_sdk::Host) -> Result<http::HeaderValue, ft_sdk::Error> {
-    let cookie = cookie::Cookie::build((ft_sdk::tracker::TRACKER_KEY, tid))
+    let cookie = cookie::Cookie::build((ft_sdk::session::TRACKER_KEY, tid))
+        .domain(host.without_port())
+        .path("/")
+        .max_age(cookie::time::Duration::seconds(34560000))
+        .same_site(cookie::SameSite::Strict)
+        .build();
+
+    Ok(http::HeaderValue::from_str(cookie.to_string().as_str())?)
+}
+
+pub fn session_cookie(sid: &str, host: ft_sdk::Host) -> Result<http::HeaderValue, ft_sdk::Error> {
+    // DO NOT CHANGE THINGS HERE, consult logout code in fastn.
+    let cookie = cookie::Cookie::build((ft_sdk::auth::SESSION_KEY, sid))
         .domain(host.without_port())
         .path("/")
         .max_age(cookie::time::Duration::seconds(34560000))

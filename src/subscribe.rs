@@ -10,14 +10,15 @@ fn subscribe(
     // on_confirm is the route to redirect to after the user confirms their subscription
     ft_sdk::Query(on_confirm): ft_sdk::Query<"on_confirm", Option<String>>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
+    tid: ft_sdk::Cookie<{ ft_sdk::session::TRACKER_KEY }>,
     host: ft_sdk::Host,
     mountpoint: ft_sdk::Mountpoint,
     mut conn: ft_sdk::Connection,
 ) -> ft_sdk::form::Result {
     use diesel::prelude::*;
 
-    let (subscriber, id, is_authenticated) = validate(&mut conn, name, phone, email, sid)?;
-    let user_id = get_or_create_user_id(&mut conn, id, &subscriber)?;
+    let subscriber = validate(&mut conn, name, phone, email, sid.clone())?;
+    let user_id = get_or_create_user_id(&mut conn, subscriber.user_id.clone(), &subscriber)?;
 
     #[derive(diesel::QueryableByName)]
     #[diesel(table_name = ft_sdk::auth::fastn_user)]
@@ -41,16 +42,20 @@ fn subscribe(
         add_subscription_info(data, topic.clone(), source, &subscriber);
 
     let name = subscriber.name.unwrap_or_else(|| "".to_string());
-    if has_subscribed && !is_authenticated {
-        let key = ft_sdk::Rng::generate_key(64);
-        data = add_confirmation_key_in_user(data, &key);
 
-        let on_confirm = on_confirm.clone().unwrap_or_else(|| "/".to_string());
-        let conf_link = confirmation_link(&key, &subscriber.email, &on_confirm, &host, &mountpoint);
-        send_double_opt_in_email(&mut conn, (&name, &subscriber.email), &conf_link, topic)?;
-    } else {
-        data = subscription::mark_user_verified(data);
-        subscription::send_welcome_email(&mut conn, (&name, &subscriber.email))?;
+    if has_subscribed {
+        if subscriber.is_verified_user {
+            data = subscription::mark_user_verified(data);
+            subscription::send_welcome_email(&mut conn, (&name, &subscriber.email))?;
+        } else {
+            let key = ft_sdk::Rng::generate_key(64);
+            data = add_confirmation_key_in_user(data, &key);
+
+            let on_confirm = on_confirm.clone().unwrap_or_else(|| "/".to_string());
+            let conf_link =
+                confirmation_link(&key, &subscriber.email, &on_confirm, &host, &mountpoint);
+            send_double_opt_in_email(&mut conn, (&name, &subscriber.email), &conf_link, topic)?;
+        }
     }
 
     let data = serde_json::to_string(&data)?;
@@ -64,17 +69,43 @@ fn subscribe(
     ))
     .execute(&mut conn)?;
 
-    let next = if is_authenticated { on_confirm } else { next };
+    let next = if subscriber.is_verified_user {
+        on_confirm
+    } else {
+        next
+    };
 
-    let tracker_id = ft_sdk::tracker::create_tracker(&mut conn, Some(user_id.0))?;
+    let mut resp = ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))?;
 
-    Ok(
-        ft_sdk::form::redirect(next.unwrap_or_else(|| "/thank-you/".to_string()))?
-            .with_cookie(subscription::tracker_cookie(tracker_id.0.as_str(), host)?),
-    )
+    if sid.0.is_none() {
+        // session does no exists, create a new one
+        let sid = ft_sdk::session::SessionID::new(&mut conn, Some(user_id), None)?;
+        resp = resp.with_cookie(subscription::session_cookie(&sid.0, host.clone())?);
+    } else {
+        // session does exist, let's update the user id
+        // this is required if we have created a new user
+        if subscriber.user_id.is_none() {
+            let sid = ft_sdk::session::SessionID::from_string(sid.0.unwrap());
+            sid.set_user_id(&mut conn, user_id)?;
+        }
+    }
+
+    if tid.0.is_none() {
+        // generate a tracker cookie if it does not already exist
+        // WARN: the user of this route should let the user know that we are setting a tracker
+        // cookie
+        resp = resp.with_cookie(subscription::tracker_cookie(
+            &ft_sdk::utils::uuid_v8(),
+            host,
+        )?);
+    }
+
+    Ok(resp)
 }
 
 struct Subscriber {
+    user_id: Option<ft_sdk::auth::UserId>,
+    is_verified_user: bool,
     name: Option<String>,
     email: String,
     phone: Option<String>,
@@ -90,25 +121,30 @@ fn validate(
     phone: Option<String>,
     email: Option<String>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
-) -> Result<(Subscriber, Option<ft_sdk::auth::UserId>, bool), ft_sdk::Error> {
+) -> Result<Subscriber, ft_sdk::Error> {
     match email {
         Some(email) => {
             if !validator::ValidateEmail::validate_email(&email) {
                 return Err(ft_sdk::single_error("email", "Invalid email.").into());
             }
 
-            Ok((Subscriber { name, email, phone }, None, false))
+            Ok(Subscriber {
+                name,
+                email,
+                phone,
+                user_id: None,
+                is_verified_user: false,
+            })
         }
         None => match ft_sdk::auth::ud(sid, conn)? {
-            Some(ud) => Ok((
-                Subscriber {
-                    name: Some(ud.name),
-                    email: ud.email,
-                    phone,
-                },
-                Some(ft_sdk::auth::UserId(ud.id)),
-                true,
-            )),
+            Some(ud) => Ok(Subscriber {
+                name: Some(ud.name),
+                email: ud.email,
+                phone,
+                user_id: Some(ft_sdk::auth::UserId(ud.id)),
+                // user is verified is they have a verified email
+                is_verified_user: ud.verified_email,
+            }),
             None => Err(ft_sdk::single_error("email", "Email is required.").into()),
         },
     }

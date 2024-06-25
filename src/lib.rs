@@ -8,7 +8,7 @@ mod set_tracker;
 mod unsubscribe;
 mod welcome_email_templ; // set-tracker
 
-pub(crate) use confirm_subscription::mark_user_verified;
+pub(crate) use confirm_subscription::mark_subscription_verified;
 pub(crate) use confirm_subscription::send_welcome_email;
 pub(crate) use subscribe::email_from_address_from_env;
 

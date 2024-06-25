@@ -45,7 +45,7 @@ fn confirm_subscription(
     let data = {
         let mut data = data;
 
-        data = mark_user_verified(data);
+        data = mark_subscription_verified(data);
 
         serde_json::to_string(&data)?
     };
@@ -76,7 +76,7 @@ fn get_name(user_data: &serde_json::Value) -> String {
         .unwrap_or_default()
 }
 
-pub(crate) fn mark_user_verified(mut user_data: serde_json::Value) -> serde_json::Value {
+pub(crate) fn mark_subscription_verified(mut user_data: serde_json::Value) -> serde_json::Value {
     match user_data
         .as_object_mut()
         .expect("data is always a json object")

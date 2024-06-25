@@ -10,7 +10,6 @@ fn subscribe(
     // on_confirm is the route to redirect to after the user confirms their subscription
     ft_sdk::Query(on_confirm): ft_sdk::Query<"on_confirm", Option<String>>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
-    tid: ft_sdk::Cookie<{ ft_sdk::session::TRACKER_KEY }>,
     host: ft_sdk::Host,
     mountpoint: ft_sdk::Mountpoint,
     mut conn: ft_sdk::Connection,
@@ -45,7 +44,7 @@ fn subscribe(
 
     if has_subscribed {
         if subscriber.is_verified_user {
-            data = subscription::mark_user_verified(data);
+            data = subscription::mark_subscription_verified(data);
             subscription::send_welcome_email(&mut conn, (&name, &subscriber.email))?;
         } else {
             let key = ft_sdk::Rng::generate_key(64);
@@ -79,25 +78,15 @@ fn subscribe(
 
     if sid.0.is_none() {
         // session does no exists, create a new one
-        let sid = ft_sdk::session::SessionID::new(&mut conn, Some(user_id), None)?;
+        let data = serde_json::json!({
+            "subscription_uid": user_id.0,
+        });
+        let sid = ft_sdk::SessionID::create(&mut conn, None, Some(data))?;
         resp = resp.with_cookie(subscription::session_cookie(&sid.0, host.clone())?);
     } else {
-        // session does exist, let's update the user id
-        // this is required if we have created a new user
-        if subscriber.user_id.is_none() {
-            let sid = ft_sdk::session::SessionID::from_string(sid.0.unwrap());
-            sid.set_user_id(&mut conn, user_id)?;
-        }
-    }
-
-    if tid.0.is_none() {
-        // generate a tracker cookie if it does not already exist
-        // WARN: the user of this route should let the user know that we are setting a tracker
-        // cookie
-        resp = resp.with_cookie(subscription::tracker_cookie(
-            &ft_sdk::utils::uuid_v8(),
-            host,
-        )?);
+        // session does exist, let's update the session data
+        let sid = ft_sdk::SessionID::from_string(sid.0.unwrap());
+        sid.set_key(&mut conn, "subscription_uid", user_id.0.into())?;
     }
 
     Ok(resp)
@@ -113,6 +102,7 @@ struct Subscriber {
 
 /// construct [Subscriber] from request data and session
 /// if email is None, try to get it from logged in user
+/// if there's no logged in user, attempt to read `subscription_uid` of session data
 ///
 /// return (Subscriber, UserId, is_authenticated)
 fn validate(
@@ -136,7 +126,7 @@ fn validate(
                 is_verified_user: false,
             })
         }
-        None => match ft_sdk::auth::ud(sid, conn)? {
+        None => match ft_sdk::auth::ud(sid.clone(), conn)? {
             Some(ud) => Ok(Subscriber {
                 name: Some(ud.name),
                 email: ud.email,
@@ -145,11 +135,52 @@ fn validate(
                 // user is verified is they have a verified email
                 is_verified_user: ud.verified_email,
             }),
-            None => Err(ft_sdk::single_error("email", "Email is required.").into()),
+            None => {
+                if sid.0.is_none() {
+                    return Err(ft_sdk::single_error("email", "Email is required.").into());
+                }
+                let sid = ft_sdk::SessionID::from_string(sid.0.unwrap());
+
+                let user = get_subscription_from_subscription_uid(conn, sid)?;
+
+                if user.is_none() {
+                    return Err(ft_sdk::single_error("email", "Email is required.").into());
+                }
+
+                Ok(user.unwrap())
+            }
         },
     }
 }
 
+fn get_subscription_from_subscription_uid(
+    conn: &mut ft_sdk::Connection,
+    sid: ft_sdk::SessionID,
+) -> Result<Option<Subscriber>, ft_sdk::Error> {
+    let user_id = sid
+        .get_key(conn, "subscription_uid")?
+        .as_str()
+        .and_then(|id| id.parse::<i64>().ok().map(ft_sdk::auth::UserId));
+
+    if user_id.is_none() {
+        return Ok(None);
+    }
+
+    let user_id = user_id.unwrap();
+
+    let (user_id, data) =
+        ft_sdk::auth::provider::user_data_by_id(conn, subscription::EMAIL_PROVIDER_ID, &user_id)?;
+
+    Ok(Some(Subscriber {
+        user_id: Some(user_id),
+        is_verified_user: !data.verified_emails.is_empty(),
+        name: data.name.clone(),
+        email: data.first_email(),
+        phone: None,
+    }))
+}
+
+/// add subscription confirmation key in user data
 fn add_confirmation_key_in_user(mut user_data: serde_json::Value, key: &str) -> serde_json::Value {
     match user_data
         .as_object_mut()
@@ -233,9 +264,9 @@ fn send_double_opt_in_email(
     )?)
 }
 
-/// return `id` if it is Some
-/// otherwise, get user data by email and return its id
-/// if user data is not found, create user and return its id
+/// Return `id` if it is Some else get user data by email and return its id
+/// If user data is not found, create user and return its id. The returned bool is true in this
+/// case and false otherwise
 fn get_or_create_user_id(
     conn: &mut ft_sdk::Connection,
     id: Option<ft_sdk::auth::UserId>,

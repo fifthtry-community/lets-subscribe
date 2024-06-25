@@ -16,7 +16,8 @@ fn set_tracker(
         Some(t) => Some(create_session_using_t(t, &mut conn)?),
         None => {
             if sid.0.is_none() {
-                Some(ft_sdk::session::SessionID::new(&mut conn, None, None)?)
+                // create empty session
+                Some(ft_sdk::SessionID::create(&mut conn, None, None)?)
             } else {
                 // session is already set, do nothing
                 None
@@ -43,12 +44,12 @@ fn set_tracker(
 fn create_session_using_t(
     t: String,
     conn: &mut ft_sdk::Connection,
-) -> Result<ft_sdk::session::SessionID, ft_sdk::Error> {
+) -> Result<ft_sdk::SessionID, ft_sdk::Error> {
     let user_id: ft_sdk::PlainText =
         ft_sdk::EncryptedString::from_already_encrypted_string(t).try_into()?;
 
     let user_id = user_id.to_string().parse::<i64>()?;
-    let user_id = ft_sdk::auth::UserId(user_id);
+    let session_data = serde_json::json!({ "subscription_uid": user_id });
 
-    Ok(ft_sdk::session::SessionID::new(conn, Some(user_id), None)?)
+    ft_sdk::SessionID::create(conn, None, Some(session_data))
 }

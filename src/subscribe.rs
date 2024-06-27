@@ -86,7 +86,7 @@ fn subscribe(
     } else {
         // session does exist, let's update the session data
         let sid = ft_sdk::SessionID::from_string(sid.0.unwrap());
-        sid.set_key(&mut conn, "subscription_uid", user_id.0.into())?;
+        sid.set_key(&mut conn, "subscription_uid", user_id.0)?;
     }
 
     Ok(resp)
@@ -141,7 +141,7 @@ fn validate(
                 }
                 let sid = ft_sdk::SessionID::from_string(sid.0.unwrap());
 
-                let user = get_subscription_from_subscription_uid(conn, sid)?;
+                let user = get_subscription_from_subscription_uid(conn, sid);
 
                 if user.is_none() {
                     return Err(ft_sdk::single_error("email", "Email is required.").into());
@@ -156,28 +156,23 @@ fn validate(
 fn get_subscription_from_subscription_uid(
     conn: &mut ft_sdk::Connection,
     sid: ft_sdk::SessionID,
-) -> Result<Option<Subscriber>, ft_sdk::Error> {
-    let user_id = sid
-        .get_key(conn, "subscription_uid")?
-        .as_str()
-        .and_then(|id| id.parse::<i64>().ok().map(ft_sdk::auth::UserId));
+) -> Option<Subscriber> {
+    let subscription_uid = sid.data(conn).ok()?.get_key("subscription_uid")?;
+    let user_id = ft_sdk::UserId(subscription_uid);
 
-    if user_id.is_none() {
-        return Ok(None);
-    }
+    let data =
+        ft_sdk::auth::provider::user_data_by_id(conn, subscription::EMAIL_PROVIDER_ID, &user_id)
+            .ok()?;
 
-    let user_id = user_id.unwrap();
-
-    let (user_id, data) =
-        ft_sdk::auth::provider::user_data_by_id(conn, subscription::EMAIL_PROVIDER_ID, &user_id)?;
-
-    Ok(Some(Subscriber {
+    Some(Subscriber {
         user_id: Some(user_id),
         is_verified_user: !data.verified_emails.is_empty(),
         name: data.name.clone(),
-        email: data.first_email(),
+        email: data
+            .first_email()
+            .expect("email provider must have an email"),
         phone: None,
-    }))
+    })
 }
 
 /// add subscription confirmation key in user data

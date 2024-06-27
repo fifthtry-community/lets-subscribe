@@ -66,10 +66,6 @@ fn user_data_from_sid(
             OR fastn_user.id = json_extract(fastn_session.data, '$.subscription_uid')
             WHERE
                 fastn_session.id = $1
-                AND (
-                    fastn_user.id = fastn_session.uid
-                    OR fastn_user.id = json_extract(fastn_session.data, '$.subscription_uid')
-                )
             LIMIT 1;
             "#,
         )

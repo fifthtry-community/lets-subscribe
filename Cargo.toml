@@ -23,6 +23,6 @@ validator = "0.18"
 
 
 [dependencies.ft-sdk]
-version = "0.1.13"
+version = "0.1.14"
 # path = "../../work/ft-sdk/ft-sdk/"
 features = ["sqlite-default", "auth-provider", "field-extractors"]

@@ -49,27 +49,51 @@ fn check_if_subscribed(topic: Option<String>, user_data: serde_json::Value) -> b
 
 /// try to get user data from the session's uid or session's data->'subscription_uid'
 fn user_data_from_sid(
-    ft_sdk::Cookie(user_id_from_session): ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
+    ft_sdk::Cookie(sid): ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
     conn: &mut ft_sdk::Connection,
 ) -> Result<serde_json::Value, ft_sdk::Error> {
     use diesel::prelude::*;
 
-    let query = if user_id_from_session.is_some() {
-        let user_id = user_id_from_session.unwrap();
+    let query = if sid.is_some() {
+        let session_id = sid.unwrap();
+        // WARN: try to get user data from the session's uid
+        // if that fails then try to get user data from the session's data->'subscription_uid'
+        // reason: there's a situation where `uid` and `subscription_uid` can be different. We
+        // favor uid in that situation.
+        // The situation: a visitor (not logged in) subscribes. We set a `subscription_uid` with
+        // this newly created user. Later this same visitor from the same browser can do a
+        // login/signup with a different email (different id) which will update the session store's
+        // `uid` field to this new id. The `uid` takes precendence in this case
+        // TODO: test this query on postgres
         diesel::sql_query(
             r#"
-            SELECT
-                fastn_user.data as data
-            FROM fastn_user
-            JOIN fastn_session
-            ON fastn_user.id = fastn_session.uid 
-            OR fastn_user.id = json_extract(fastn_session.data, '$.subscription_uid')
-            WHERE
-                fastn_session.id = $1
+            WITH first_join AS (
+                SELECT
+                    fastn_user.data as data
+                FROM fastn_user
+                JOIN fastn_session
+                ON fastn_user.id = fastn_session.uid 
+                WHERE fastn_session.id = $1
+            ),
+            second_join AS (
+                SELECT
+                    fastn_user.data as data
+                FROM fastn_user
+                JOIN fastn_session
+                ON fastn_user.id = json_extract(fastn_session.data, '$.subscription_uid')
+                WHERE fastn_session.id = $1
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM first_join
+                )
+            )
+            SELECT * FROM first_join
+            UNION ALL
+            SELECT * FROM second_join
             LIMIT 1;
             "#,
         )
-        .bind::<diesel::sql_types::Text, _>(user_id)
+        .bind::<diesel::sql_types::Text, _>(session_id)
     } else {
         return Err(ft_sdk::single_error("user_id", "user_id is required").into());
     };

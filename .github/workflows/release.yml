@@ -1,0 +1,57 @@
+name: Create a new release
+
+on:
+  workflow_dispatch:
+    inputs:
+      releaseTag:
+        description: 'Release Tag'
+        required: true
+      productionRelease:
+        type: boolean
+        description: Mark release as production ready
+jobs:
+  release-main:
+    name: Release from latest main
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: print rustc version
+        run: rustc --version
+      - name: cargo build wasm
+        run: cargo build --release --target wasm32-unknown-unknown
+      - name: print file info
+        run: |
+          file ./target/wasm32-unknown-unknown/release/subscription.wasm
+          ls -lah ./target/wasm32-unknown-unknown/release/subscription.wasm
+      - name: Install wasm-opt
+        run: cargo install wasm-opt
+      - name: optimize wasm builds
+        run: |
+          wasm-opt -O3 ./target/wasm32-unknown-unknown/release/subscription.wasm -o subscription.wasm
+      - name: print file info after optmization
+        run: |
+          file subscription.wasm
+          ls -lah subscription.wasm
+      - name: Update .github/RELEASE_TEMPLATE.md
+        run: |
+          sed -i "s/GITHUB_SHA/${GITHUB_SHA}/g" .github/RELEASE_TEMPLATE.md
+          sed -i "s/DATE/$(date)/g" .github/RELEASE_TEMPLATE.md
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: "subscription.wasm"
+          generateReleaseNotes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event.inputs.releaseTag }}
+          prerelease: ${{ github.event.inputs.productionRelease && github.event.inputs.productionRelease == 'false' }}
+          bodyFile: .github/RELEASE_TEMPLATE.md
+

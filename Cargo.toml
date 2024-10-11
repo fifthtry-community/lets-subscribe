@@ -1,6 +1,6 @@
 [package]
 name = "subscription"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "subscription wasm app"
 
@@ -15,7 +15,7 @@ serde = {  version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1"
 bytes = "1"
-diesel = { version = ">=2, <2.2", default-features = false, features = ["chrono"] }
+diesel = { version = "2", default-features = false, features = ["chrono"] }
 thiserror = "1"
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 cookie = "0.18"
@@ -23,6 +23,6 @@ validator = "0.18"
 
 
 [dependencies.ft-sdk]
-version = "0.1.14"
+version = "0.1.17"
 # path = "../../work/ft-sdk/ft-sdk/"
 features = ["sqlite-default", "auth-provider", "field-extractors"]

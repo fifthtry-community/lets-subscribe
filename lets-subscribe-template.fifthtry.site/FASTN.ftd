@@ -1,3 +1,9 @@
 -- import: fastn
 
 -- fastn.package: lets-subscribe-template.fifthtry.site
+
+-- fastn.dependency: lets-subscribe.fifthtry.site
+
+-- fastn.app: Lets Subscribe App
+mount-point: /-/sub/
+package: lets-subscribe.fifthtry.site

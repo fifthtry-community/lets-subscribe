@@ -1,3 +1,5 @@
 -- import: fastn
 
 -- fastn.package: lets-subscribe.fifthtry.site
+system: lets-talk
+system-is-confidential: false

@@ -11,7 +11,7 @@ SOURCE1="./target/wasm32-unknown-unknown/release/"
 SOURCE2="$HOME/target/wasm32-unknown-unknown/release/"
 
 # Define destination folders
-DEST="./lets-talk.fifthtry.site"
+DEST="./lets-subscribe.fifthtry.site"
 
 # Ensure WASM files exist and determine the source folder to use
 if [ -d "$SOURCE1" ]; then
@@ -24,6 +24,6 @@ else
 fi
 
 # Copy files to destinations
-cp "${SOURCE_DIR}talk.wasm" "$DEST"
+cp "${SOURCE_DIR}backend.wasm" "$DEST"
 
 echo "WASM files copied successfully to ${DEST}"

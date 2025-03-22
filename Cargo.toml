@@ -1,28 +1,31 @@
-[package]
-name = "subscription"
-version = "0.1.1"
-edition = "2021"
-description = "subscription wasm app"
-
-[lib]
-crate-type = ["cdylib"]
-
-[features]
+[workspace]
+members = ["backend"]
+resolver = "2"
 
 
-[dependencies]
-serde = {  version = "1", features = ["derive"] }
+[profile.release]
+lto = true
+opt-level = 's'
+
+
+[workspace.package]
+authors = [
+    "Amit Upadhyay <upadhyay@gmail.com>",
+    "Siddhant Kumar <siddhantk232@gmail.com>",
+]
+edition = "2024"
+description = "Wasm backend of let's subscribe"
+license = "MIT"
+repository = "https://github.com/fastn-community/lets-subscribe"
+homepage = "https://github.com/fastn-community/lets-subscribe"
+
+
+[workspace.dependencies]
+ft-sdk = { version = "0.6.3", path="../ft-sdk/ft-sdk", features = ["sqlite-default", "auth-provider", "field-extractors"] }
 serde_json = "1"
-http = "1"
-bytes = "1"
+http = "1.0"
 diesel = { version = "2", default-features = false, features = ["chrono"] }
-thiserror = "1"
-chrono = { version = "0.4", default-features = false, features = ["serde"] }
-cookie = "0.18"
-validator = "0.18"
-
-
-[dependencies.ft-sdk]
-version = "0.1.17"
-# path = "../../work/ft-sdk/ft-sdk/"
-features = ["sqlite-default", "auth-provider", "field-extractors"]
+base64 = "0.22"
+cookie = { version = "0.18", features = ["percent-encode"] }
+validator = "0.20.0"
+smallvec = { version = "2.0.0-alpha.10", features = ["serde"] }

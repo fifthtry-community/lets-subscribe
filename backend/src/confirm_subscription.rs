@@ -59,7 +59,7 @@ fn confirm_subscription(
     ))
     .execute(&mut conn)?;
 
-    send_welcome_email(&mut conn, (&name, &email))?;
+    send_welcome_email((&name, &email))?;
 
     let next = next.unwrap_or_else(|| "/".to_string());
     ft_sdk::processor::temporary_redirect(next)
@@ -98,7 +98,6 @@ pub(crate) fn mark_subscription_verified(mut user_data: serde_json::Value) -> se
 }
 
 pub(crate) fn send_welcome_email(
-    conn: &mut ft_sdk::Connection,
     to: (&str, &str),
 ) -> Result<(), ft_sdk::Error> {
     let (from_name, from_email) = subscription::email_from_address_from_env();
@@ -109,17 +108,23 @@ pub(crate) fn send_welcome_email(
 
     let body_txt = subscription::welcome_email_templ::TEXT_BODY.replace("{name}", name_or_email);
 
-    Ok(ft_sdk::send_email(
-        conn,
-        (&from_name, &from_email),
-        vec![to],
-        // TODO: this should be configurable
-        "Confirm your subscription",
-        &body_html,
-        &body_txt,
-        None,
-        None,
-        None,
-        "subscription.welcome_email",
-    )?)
+    let from = ft_sdk::EmailAddress {
+        name: Some(from_name),
+        email: from_email,
+    };
+
+    if let Err(e) = ft_sdk::email::send(&ft_sdk::Email {
+        from,
+        to: smallvec::smallvec![(to.0.to_string(), to.1.to_string()).into()],
+        reply_to: None,
+        cc: smallvec::smallvec![],
+        bcc: smallvec::smallvec![],
+        mkind: "subscription.welcome_email".to_string(),
+        content: Default::default(), // FIXME: fill in real email contents
+    }) {
+        ft_sdk::println!("auth.wasm: failed to queue email: {:?}", e);
+        return Err(e.into());
+    }
+
+    Ok(())
 }

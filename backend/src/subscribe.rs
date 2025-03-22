@@ -11,7 +11,7 @@ fn subscribe(
     ft_sdk::Query(on_confirm): ft_sdk::Query<"on_confirm", Option<String>>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
     host: ft_sdk::Host,
-    mountpoint: ft_sdk::Mountpoint,
+    app_url: ft_sdk::AppUrl,
     mut conn: ft_sdk::Connection,
 ) -> ft_sdk::form::Result {
     use diesel::prelude::*;
@@ -45,15 +45,15 @@ fn subscribe(
     if has_subscribed {
         if subscriber.is_verified_user {
             data = subscription::mark_subscription_verified(data);
-            subscription::send_welcome_email(&mut conn, (&name, &subscriber.email))?;
+            subscription::send_welcome_email((&name, &subscriber.email))?;
         } else {
             let key = ft_sdk::Rng::generate_key(64);
             data = add_confirmation_key_in_user(data, &key);
 
             let on_confirm = on_confirm.clone().unwrap_or_else(|| "/".to_string());
             let conf_link =
-                confirmation_link(&key, &subscriber.email, &on_confirm, &host, &mountpoint);
-            send_double_opt_in_email(&mut conn, (&name, &subscriber.email), &conf_link, topic)?;
+                confirmation_link(&key, &subscriber.email, &on_confirm, &app_url);
+            send_double_opt_in_email((&name, &subscriber.email), &conf_link, topic)?;
         }
     }
 
@@ -210,22 +210,18 @@ fn confirmation_link(
     key: &str,
     email: &str,
     next: &str,
-    ft_sdk::Host(host): &ft_sdk::Host,
-    ft_sdk::Mountpoint(mountpoint): &ft_sdk::Mountpoint,
+    app_url: &ft_sdk::AppUrl,
 ) -> String {
-    format!(
-        "https://{host}{mountpoint}{confirm_sub_route}?code={key}&email={email}&next={next}",
-        confirm_sub_route = "/confirm-subscription/",
-        mountpoint = mountpoint.trim_end_matches('/'),
-    )
+    let url = app_url.join("/confirm_subscription/").unwrap(); // TODO: erro handle
+    format!("{url}?code={key}&email={email}&next={next}")
 }
 
 fn send_double_opt_in_email(
-    conn: &mut ft_sdk::Connection,
     to: (&str, &str),
     conf_link: &str,
     topic: Option<String>,
 ) -> Result<(), ft_sdk::Error> {
+    // TODO: use app's /config to get these values
     let (from_name, from_email) = email_from_address_from_env();
 
     let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
@@ -244,19 +240,25 @@ fn send_double_opt_in_email(
         .replace("{confirmation_link}", conf_link)
         .replace("{topic}", &to_topic);
 
-    Ok(ft_sdk::send_email(
-        conn,
-        (&from_name, &from_email),
-        vec![to],
-        // TODO: this should be configurable
-        "Confirm your subscription",
-        &body_html,
-        &body_txt,
-        None,
-        None,
-        None,
-        "subscription.confirm_subscription_request",
-    )?)
+    let from = ft_sdk::EmailAddress {
+        name: Some(from_name),
+        email: from_email,
+    };
+
+    if let Err(e) = ft_sdk::email::send(&ft_sdk::Email {
+        from,
+        to: smallvec::smallvec![(to.0.to_string(), to.1.to_string()).into()],
+        reply_to: None,
+        cc: smallvec::smallvec![],
+        bcc: smallvec::smallvec![],
+        mkind: "subscription.confirm_subscription_request".to_string(),
+        content: Default::default(), // FIXME:
+    }) {
+        ft_sdk::println!("auth.wasm: failed to queue email: {:?}", e);
+        return Err(e.into());
+    }
+
+    Ok(())
 }
 
 /// Return `id` if it is Some else get user data by email and return its id

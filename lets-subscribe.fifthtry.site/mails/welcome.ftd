@@ -1,0 +1,33 @@
+-- import: fastn/processors as pr
+-- import: lets-subscribe.fifthtry.site/mails as mail
+
+-- string name: Subscriber
+$processor$: pr.request-data
+
+-- string topic: Newsletter
+$processor$: pr.request-data
+
+-- optional string what:
+$processor$: pr.request-data
+
+
+-- string html: $lets-subscribe.welcome-email-body-html(name=$name, topic=$topic)
+-- string text: $lets-subscribe.welcome-email-body-text(name=$name, topic=$topic)
+-- string subject: $lets-subscribe.welcome-email-subject(name=$name, topic=$topic)
+
+
+-- mail.mail-preview: 
+subject: $subject
+html: $html
+text: $text
+from: John Deo
+from-email: john-deo@john-deo.com
+to: Jenny Deo
+to-email: jenny-deo@jenny-deo.com
+
+
+-- ftd.json:
+if: { $what == "json" }
+text: $text
+html: $html
+subject: $subject

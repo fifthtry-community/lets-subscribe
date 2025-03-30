@@ -1,0 +1,36 @@
+-- import: fastn/processors as pr
+-- import: lets-subscribe.fifthtry.site/mails as mail
+
+-- string name: Subscriber
+$processor$: pr.request-data
+
+-- string topic: Newsletter
+$processor$: pr.request-data
+
+-- string link: https://lets-subscribe.fifthtry-community.com/
+$processor$: pr.request-data
+
+-- optional string what:
+$processor$: pr.request-data
+
+
+-- string html: $lets-subscribe.double-opt-in-email-body-html(name=$name, topic=$topic, link=$link)
+-- string text: $lets-subscribe.double-opt-in-email-body-text(name=$name, topic=$topic, link=$link)
+-- string subject: $lets-subscribe.double-opt-in-email-subject(name=$name, topic=$topic, link=$link)
+
+
+-- mail.mail-preview: 
+subject: $subject
+html: $html
+text: $text
+from: John Deo
+from-email: john-deo@john-deo.com
+to: Jenny Deo
+to-email: jenny-deo@jenny-deo.com
+
+
+-- ftd.json:
+if: { $what == "json" }
+text: $text
+html: $html
+subject: $subject

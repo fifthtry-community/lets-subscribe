@@ -1,1 +1,63 @@
 -- ftd.text: Let's Subscribe!
+
+-- template welcome-email-subject(name, topic):
+string name:
+string topic:
+
+Welcome to your subscription
+
+-- template welcome-email-body-html(name, topic):
+string name:
+string topic:
+
+<html>
+    <title>Welcome</title>
+<head>
+</head>
+<body>
+    <h1>Thank you for subscribing!</h1>
+    <p>Hi $name, Thank you for subscribing $topic powered by lets-subscribe! We're excited to have you on board.</p>
+</body>
+</html>
+
+-- template welcome-email-body-text(name, topic):
+string name:
+string topic:
+
+Thank you for subscribing!
+
+Hi $name, Thank you for subscribing to $topic powered by lets-subscribe! We're excited to have you on board.
+
+-- template double-opt-in-email-subject(name, topic):
+string name:
+string topic:
+string link:
+
+Confirm your subscription
+
+-- template double-opt-in-email-body-html(name, topic):
+string name:
+string topic:
+string link:
+
+<html>
+<head>
+    <title>Confirm Your Subscription</title>
+</head>
+<body>
+    <h1>Confirm Your Subscription</h1>
+    <p>Hi $name, Thank you for subscribing to $topic!</p>
+    <p>Please confirm your subscription by clicking the link below:</p>
+    <a href="$link">Confirm Subscription</a>
+</body>
+</html>
+
+-- template double-opt-in-email-body-text(name, topic):
+string name:
+string topic:
+string link:
+
+Hi $name, Thank you for subscribing to $topic!
+
+Please confirm your subscription by clicking the link below:
+$link

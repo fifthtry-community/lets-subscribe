@@ -1,8 +1,13 @@
 -- import: fastn
 
 -- fastn.package: lets-subscribe.fifthtry.site
-system: lets-talk
+system: lets-subscribe
 system-is-confidential: false
+
+-- fastn.dependency: design-system.fifthtry.site
+
+-- fastn.auto-import: design-system.fifthtry.site as ds
+-- fastn.auto-import: lets-subscribe.fifthtry.site as lets-subscribe
 
 
 -- fastn.migration: 0001-setup

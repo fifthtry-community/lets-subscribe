@@ -46,6 +46,7 @@ dependencies = [
  "diesel",
  "ft-sdk",
  "http",
+ "serde",
  "serde_json",
  "smallvec 2.0.0-alpha.11",
  "validator",

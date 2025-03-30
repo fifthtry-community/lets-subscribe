@@ -1,5 +1,8 @@
 -- ftd.text: Let's Subscribe!
 
+-- string email-sender-name: Amit
+-- string email-reply-to: support@fifthtry.com
+
 -- template welcome-email-subject(name, topic):
 string name:
 string topic:

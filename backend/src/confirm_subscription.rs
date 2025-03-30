@@ -4,6 +4,7 @@ fn confirm_subscription(
     ft_sdk::Query(code): ft_sdk::Query<"code">,
     ft_sdk::Query(email): ft_sdk::Query<"email">,
     ft_sdk::Query(next): ft_sdk::Query<"next", Option<String>>,
+    ft_sdk::Config(config): ft_sdk::Config<crate::Config>,
 ) -> ft_sdk::processor::Result {
     use diesel::prelude::*;
 
@@ -59,7 +60,9 @@ fn confirm_subscription(
     ))
     .execute(&mut conn)?;
 
-    send_welcome_email((&name, &email))?;
+    // TODO: get associated topic from db
+    let topic = "newsletter".to_string();
+    send_welcome_email(&name, &email, &topic, &config)?;
 
     let next = next.unwrap_or_else(|| "/".to_string());
     ft_sdk::processor::temporary_redirect(next)
@@ -98,33 +101,38 @@ pub(crate) fn mark_subscription_verified(mut user_data: serde_json::Value) -> se
 }
 
 pub(crate) fn send_welcome_email(
-    to: (&str, &str),
+    name: &str,
+    email: &str,
+    topic: &str,
+    config: &crate::Config,
 ) -> Result<(), ft_sdk::Error> {
-    let (from_name, from_email) = subscription::email_from_address_from_env();
-
-    let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
-
-    let body_html = subscription::welcome_email_templ::HTML_BODY.replace("{name}", name_or_email);
-
-    let body_txt = subscription::welcome_email_templ::TEXT_BODY.replace("{name}", name_or_email);
-
-    let from = ft_sdk::EmailAddress {
-        name: Some(from_name),
-        email: from_email,
-    };
+    let from = config.from_email();
+    let name_or_email = if name.is_empty() { email } else { name };
 
     if let Err(e) = ft_sdk::email::send(&ft_sdk::Email {
         from,
-        to: smallvec::smallvec![(to.0.to_string(), to.1.to_string()).into()],
-        reply_to: None,
+        to: smallvec::smallvec![(name.to_string(), email.to_string()).into()],
+        reply_to: Some(smallvec::smallvec![config.reply_to()]),
         cc: smallvec::smallvec![],
         bcc: smallvec::smallvec![],
-        mkind: "subscription.welcome_email".to_string(),
-        content: Default::default(), // FIXME: fill in real email contents
+        mkind: "subscription-welcome-email".to_string(),
+        content: ft_sdk::EmailContent::FromMKind {
+            context: Some(
+                serde_json::json!({
+                    "name": name_or_email,
+                    "topic": topic,
+                })
+                .as_object()
+                .unwrap()
+                .to_owned(),
+            ),
+        },
     }) {
         ft_sdk::println!("auth.wasm: failed to queue email: {:?}", e);
         return Err(e.into());
     }
+
+    ft_sdk::println!("Email added to the queue");
 
     Ok(())
 }

@@ -9,6 +9,7 @@ fn subscribe(
     ft_sdk::Query(next): ft_sdk::Query<"next", Option<String>>,
     // on_confirm is the route to redirect to after the user confirms their subscription
     ft_sdk::Query(on_confirm): ft_sdk::Query<"on_confirm", Option<String>>,
+    ft_sdk::Config(config): ft_sdk::Config<crate::Config>,
     sid: ft_sdk::Cookie<{ ft_sdk::auth::SESSION_KEY }>,
     host: ft_sdk::Host,
     app_url: ft_sdk::AppUrl,
@@ -45,7 +46,8 @@ fn subscribe(
     if has_subscribed {
         if subscriber.is_verified_user {
             data = subscription::mark_subscription_verified(data);
-            subscription::send_welcome_email((&name, &subscriber.email))?;
+            let topic = topic.unwrap_or_else(|| "newsletter".to_string());
+            subscription::send_welcome_email(&name, &subscriber.email, &topic, &config)?;
         } else {
             let key = ft_sdk::Rng::generate_key(64);
             data = add_confirmation_key_in_user(data, &key);

@@ -53,9 +53,9 @@ fn subscribe(
             data = add_confirmation_key_in_user(data, &key);
 
             let on_confirm = on_confirm.clone().unwrap_or_else(|| "/".to_string());
-            let conf_link =
-                confirmation_link(&key, &subscriber.email, &on_confirm, &app_url);
-            send_double_opt_in_email((&name, &subscriber.email), &conf_link, topic)?;
+            let conf_link = confirmation_link(&key, &subscriber.email, &on_confirm, &app_url);
+            let topic = topic.unwrap_or_else(|| "newsletter".to_string());
+            send_double_opt_in_email(&name, &subscriber.email, &conf_link, &topic, &config)?;
         }
     }
 
@@ -208,57 +208,46 @@ fn add_confirmation_key_in_user(mut user_data: serde_json::Value, key: &str) -> 
     user_data
 }
 
-fn confirmation_link(
-    key: &str,
-    email: &str,
-    next: &str,
-    app_url: &ft_sdk::AppUrl,
-) -> String {
+fn confirmation_link(key: &str, email: &str, next: &str, app_url: &ft_sdk::AppUrl) -> String {
     let url = app_url.join("/confirm_subscription/").unwrap(); // TODO: erro handle
     format!("{url}?code={key}&email={email}&next={next}")
 }
 
 fn send_double_opt_in_email(
-    to: (&str, &str),
+    name: &str,
+    email: &str,
     conf_link: &str,
-    topic: Option<String>,
+    topic: &str,
+    config: &crate::Config,
 ) -> Result<(), ft_sdk::Error> {
-    // TODO: use app's /config to get these values
-    let (from_name, from_email) = email_from_address_from_env();
-
-    let name_or_email = if to.0.is_empty() { to.1 } else { to.0 };
-
-    let to_topic = topic
-        .map(|topic| format!("to the {}", topic))
-        .unwrap_or_default();
-
-    let body_html = subscription::confirm_email_templ::HTML_BODY
-        .replace("{name}", name_or_email)
-        .replace("{confirmation_link}", conf_link)
-        .replace("{topic}", &to_topic);
-
-    let body_txt = subscription::confirm_email_templ::TEXT_BODY
-        .replace("{name}", name_or_email)
-        .replace("{confirmation_link}", conf_link)
-        .replace("{topic}", &to_topic);
-
-    let from = ft_sdk::EmailAddress {
-        name: Some(from_name),
-        email: from_email,
-    };
+    let from = config.from_email();
+    let name_or_email = if name.is_empty() { email } else { name };
 
     if let Err(e) = ft_sdk::email::send(&ft_sdk::Email {
         from,
-        to: smallvec::smallvec![(to.0.to_string(), to.1.to_string()).into()],
-        reply_to: None,
+        to: smallvec::smallvec![(name.to_string(), email.to_string()).into()],
+        reply_to: Some(smallvec::smallvec![config.reply_to()]),
         cc: smallvec::smallvec![],
         bcc: smallvec::smallvec![],
-        mkind: "subscription.confirm_subscription_request".to_string(),
-        content: Default::default(), // FIXME:
+        mkind: "subscription-confirm-subscription_request".to_string(),
+        content: ft_sdk::EmailContent::FromMKind {
+            context: Some(
+                serde_json::json!({
+                    "name": name_or_email,
+                    "topic": topic,
+                    "link": conf_link,
+                })
+                .as_object()
+                .unwrap()
+                .to_owned(),
+            ),
+        },
     }) {
         ft_sdk::println!("auth.wasm: failed to queue email: {:?}", e);
         return Err(e.into());
     }
+
+    ft_sdk::println!("Email added to the queue");
 
     Ok(())
 }
@@ -486,13 +475,4 @@ fn add_subscription_info(
     }
 
     (subscribed, data)
-}
-
-pub(crate) fn email_from_address_from_env() -> (String, String) {
-    let email = ft_sdk::env::var("FASTN_SMTP_SENDER_EMAIL".to_string())
-        .unwrap_or_else(|| "support@fifthtry.com".to_string());
-    let name = ft_sdk::env::var("FASTN_SMTP_SENDER_NAME".to_string())
-        .unwrap_or_else(|| "FifthTry Team".to_string());
-
-    (name, email)
 }

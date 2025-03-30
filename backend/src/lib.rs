@@ -5,17 +5,14 @@
 
 extern crate self as subscription;
 
-mod confirm_email_templ;
 mod confirm_subscription;
 mod is_subscribed;
 mod subscribe;
 mod set_tracker;
 mod unsubscribe;
-mod welcome_email_templ;
 
 pub(crate) use confirm_subscription::mark_subscription_verified;
 pub(crate) use confirm_subscription::send_welcome_email;
-pub(crate) use subscribe::email_from_address_from_env;
 
 pub const EMAIL_PROVIDER_ID: &str = "email";
 pub const SUBSCRIPTION_PROVIDER_ID: &str = "subscription";
